@@ -7,9 +7,9 @@ const markdown = {
   ul: (props) => <ul className="mb-3 list-disc space-y-1 pl-5 last:mb-0" {...props} />,
   ol: (props) => <ol className="mb-3 list-decimal space-y-1 pl-5 last:mb-0" {...props} />,
   li: (props) => <li className="leading-[1.6]" {...props} />,
-  h1: (props) => <h1 className="mb-2 mt-5 text-[17px] font-semibold first:mt-0" {...props} />,
-  h2: (props) => <h2 className="mb-2 mt-5 text-[16px] font-semibold first:mt-0" {...props} />,
-  h3: (props) => <h3 className="mb-2 mt-4 text-[15px] font-semibold first:mt-0" {...props} />,
+  h1: (props) => <h1 className="mb-2 mt-5 text-[1.14em] font-semibold first:mt-0" {...props} />,
+  h2: (props) => <h2 className="mb-2 mt-5 text-[1.07em] font-semibold first:mt-0" {...props} />,
+  h3: (props) => <h3 className="mb-2 mt-4 text-[1em] font-semibold first:mt-0" {...props} />,
   strong: (props) => <strong className="font-semibold" {...props} />,
   hr: () => <hr className="my-4 border-line" />,
   a: (props) => (
@@ -25,7 +25,7 @@ const markdown = {
   ),
   pre: (props) => (
     <pre
-      className="mb-3 overflow-x-auto rounded-xl bg-[#F1EDE5] p-3.5 text-[13px] leading-relaxed last:mb-0"
+      className="thin-scrollbar mb-3 overflow-x-auto rounded-xl bg-codebg p-3.5 text-[0.86em] leading-relaxed last:mb-0"
       {...props}
     />
   ),
@@ -35,13 +35,13 @@ const markdown = {
         {children}
       </code>
     ) : (
-      <code className="rounded bg-[#EFEBE2] px-1.5 py-0.5 font-mono text-[13px]" {...rest}>
+      <code className="rounded bg-codebg px-1.5 py-0.5 font-mono text-[0.88em]" {...rest}>
         {children}
       </code>
     ),
   table: (props) => (
-    <div className="mb-3 overflow-x-auto last:mb-0">
-      <table className="w-full border-collapse text-left text-[14px]" {...props} />
+    <div className="thin-scrollbar mb-3 overflow-x-auto last:mb-0">
+      <table className="w-full border-collapse text-left text-[0.94em]" {...props} />
     </div>
   ),
   th: (props) => (
@@ -53,8 +53,11 @@ const markdown = {
 export default function Message({ message, streaming }) {
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-ink px-4 py-2.5 text-[15px] leading-relaxed text-white">
+      <div className="flex justify-end rise">
+        <div
+          className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 leading-relaxed text-bubbleInk"
+          style={{ fontSize: "var(--msg-size)" }}
+        >
           {message.text}
         </div>
       </div>
@@ -72,7 +75,7 @@ export default function Message({ message, streaming }) {
   }
 
   return (
-    <div className="text-[15px] text-ink">
+    <div className="text-ink" style={{ fontSize: "var(--msg-size)" }}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdown}>
         {message.text}
       </ReactMarkdown>

@@ -1,20 +1,29 @@
 /** @type {import('tailwindcss').Config} */
+
+// Every colour resolves through a CSS variable set by src/lib/themes.js, so a
+// theme switch is one style write rather than a re-render.
+const themed = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
       colors: {
-        page: "#FAF9F7",
-        panel: "#F3F1EC",
-        line: "#E6E2D9",
-        ink: "#1A1A1A",
-        muted: "#8A8378",
-        soft: "#B4ADA1",
-        accent: "#B4552F"
+        page: themed("page"),
+        panel: themed("panel"),
+        surface: themed("surface"),
+        line: themed("line"),
+        ink: themed("ink"),
+        muted: themed("muted"),
+        soft: themed("soft"),
+        accent: themed("accent"),
+        bubble: themed("bubble"),
+        bubbleInk: themed("bubbleInk"),
+        codebg: themed("code")
       },
       fontFamily: {
-        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Inter', 'sans-serif'],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+        sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Inter", "sans-serif"],
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
       }
     }
   },

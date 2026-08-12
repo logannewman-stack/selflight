@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, Globe, Link2, Square } from "lucide-react";
 
-export default function Composer({ value, onChange, onSend, onStop, streaming }) {
+export default function Composer({ value, onChange, onSend, onStop, streaming, settings, connectorCount }) {
   const ref = useRef(null);
 
   // Grow with the text, then scroll instead of pushing the thread off screen.
@@ -21,8 +21,8 @@ export default function Composer({ value, onChange, onSend, onStop, streaming })
 
   return (
     <div className="px-4 pb-4 pt-2">
-      <div className="mx-auto w-full max-w-[720px]">
-        <div className="flex items-end gap-2 rounded-2xl border border-line bg-white px-3.5 py-2.5 shadow-[0_1px_3px_rgba(26,26,26,0.04)] focus-within:border-soft">
+      <div className="mx-auto w-full max-w-[760px]">
+        <div className="flex items-end gap-2 rounded-2xl border border-line bg-surface px-3.5 py-2.5 shadow-[0_1px_3px_rgb(0_0_0/0.04)] focus-within:border-soft">
           <textarea
             ref={ref}
             rows={1}
@@ -30,32 +30,45 @@ export default function Composer({ value, onChange, onSend, onStop, streaming })
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={keyDown}
             placeholder="Message Selflight…"
-            className="no-scrollbar max-h-[200px] flex-1 resize-none bg-transparent py-1 text-[15px] leading-relaxed outline-none placeholder:text-soft"
+            className="no-scrollbar max-h-[200px] flex-1 resize-none bg-transparent py-1 leading-relaxed outline-none placeholder:text-soft"
+            style={{ fontSize: "var(--msg-size)" }}
           />
 
           {streaming ? (
             <button
               onClick={onStop}
               aria-label="Stop generating"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink transition-transform active:scale-90"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bubble transition-transform active:scale-90"
             >
-              <Square className="h-3 w-3 fill-white text-white" />
+              <Square className="h-3 w-3 fill-bubbleInk text-bubbleInk" />
             </button>
           ) : (
             <button
               onClick={onSend}
               disabled={!value.trim()}
               aria-label="Send message"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink transition-transform active:scale-90 disabled:opacity-25"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bubble transition-transform active:scale-90 disabled:opacity-25"
             >
-              <ArrowUp className="h-4 w-4 text-white" strokeWidth={2.5} />
+              <ArrowUp className="h-4 w-4 text-bubbleInk" strokeWidth={2.5} />
             </button>
           )}
         </div>
 
-        <p className="mt-2 text-center text-[11px] text-soft">
-          Selflight can be wrong. Check anything that matters.
-        </p>
+        <div className="mt-2 flex items-center justify-center gap-3 text-[11px] text-soft">
+          {settings.webSearch && (
+            <span className="flex items-center gap-1">
+              <Globe className="h-3 w-3" strokeWidth={2} />
+              Web on
+            </span>
+          )}
+          {connectorCount > 0 && (
+            <span className="flex items-center gap-1">
+              <Link2 className="h-3 w-3" strokeWidth={2} />
+              {connectorCount} connector{connectorCount === 1 ? "" : "s"}
+            </span>
+          )}
+          <span>Selflight can be wrong. Check anything that matters.</span>
+        </div>
       </div>
     </div>
   );

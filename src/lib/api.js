@@ -3,11 +3,11 @@
 
 const ENDPOINT = "/api/chat";
 
-export async function streamChat(messages, { onText, signal } = {}) {
+async function post(payload, signal) {
   const res = await fetch(ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify(payload),
     signal
   });
 
@@ -15,7 +15,10 @@ export async function streamChat(messages, { onText, signal } = {}) {
     const detail = await res.json().catch(() => null);
     throw new Error(detail?.error || "Couldn't reach Selflight. Try again.");
   }
+  return res;
+}
 
+async function consume(res, { onText, onActivity, onNotice }) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -41,12 +44,26 @@ export async function streamChat(messages, { onText, signal } = {}) {
       }
 
       if (payload.text) onText?.(payload.text);
+      if (payload.activity) onActivity?.(payload.activity);
+      if (payload.notice) onNotice?.(payload.notice);
       if (payload.error) failure = new Error(payload.error);
     }
   }
 
   // Errors can arrive after partial text; the caller keeps whatever streamed.
   if (failure) throw failure;
+}
+
+export async function streamChat(messages, options = {}) {
+  const { settings, connectors, signal, ...handlers } = options;
+  const res = await post({ messages, settings, connectors }, signal);
+  await consume(res, handlers);
+}
+
+export async function streamBuild(messages, options = {}) {
+  const { signal, ...handlers } = options;
+  const res = await post({ messages, task: "build" }, signal);
+  await consume(res, handlers);
 }
 
 export async function generateTitle(messages) {

@@ -1,6 +1,22 @@
 @tailwind base;
-@tailwind components;
 @tailwind utilities;
+@tailwind components;
+
+:root {
+  /* Overwritten immediately by applyTheme(); these keep the first paint sane. */
+  --page: 250 249 247;
+  --panel: 243 241 236;
+  --surface: 255 255 255;
+  --line: 230 226 217;
+  --ink: 26 26 26;
+  --muted: 128 121 110;
+  --soft: 173 166 154;
+  --accent: 180 85 47;
+  --bubble: 26 26 26;
+  --bubbleInk: 255 255 255;
+  --code: 241 237 229;
+  --msg-size: 15px;
+}
 
 @layer base {
   html,
@@ -13,10 +29,14 @@
     @apply bg-page text-ink antialiased;
   }
 
-  /* Keep iOS from zooming when the composer is focused. */
+  /* Stops iOS zooming when the composer takes focus. */
   textarea,
   input {
     font-size: 16px;
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.22);
   }
 }
 
@@ -27,6 +47,20 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: rgb(var(--soft) / 0.4);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
 .caret {
@@ -35,12 +69,46 @@
   height: 15px;
   margin-left: 2px;
   vertical-align: -2px;
-  background: #1a1a1a;
+  background: rgb(var(--ink));
   animation: caret 1.1s steps(2, start) infinite;
 }
 
 @keyframes caret {
   50% {
     opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.18s ease-out both;
+}
+
+/* Honour both the in-app setting and the OS-level preference. */
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

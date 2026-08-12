@@ -1,24 +1,36 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeft, Plus, RotateCw } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Globe, Info, Link2, PanelLeft, Plus, RotateCw, Search, Sparkles } from "lucide-react";
 import Sidebar from "./components/Sidebar.jsx";
 import Message from "./components/Message.jsx";
 import Composer from "./components/Composer.jsx";
+import RightPanel from "./components/RightPanel.jsx";
+import Build from "./components/panels/Build.jsx";
 import { generateTitle, streamChat } from "./lib/api.js";
+import { extractArtifacts } from "./lib/artifacts.js";
+import { applyTheme } from "./lib/themes.js";
 import {
+  addConnector,
   createChat,
   deleteChat,
   fallbackTitle,
   listChats,
+  listConnectors,
+  loadSettings,
+  removeConnector,
   renameChat,
-  saveMessages
+  saveMessages,
+  saveSettings,
+  updateConnector
 } from "./lib/storage.js";
 
 const SUGGESTIONS = [
   "Explain something I'm stuck on",
-  "Help me write a hard email",
+  "What changed in the news today?",
   "Think through a decision with me",
   "Find the flaw in this plan"
 ];
+
+const ACTIVITY_ICONS = { search: Search, fetch: Globe, connector: Link2, tool: Sparkles };
 
 export default function App() {
   const [chats, setChats] = useState(() => listChats());
@@ -27,6 +39,14 @@ export default function App() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [activity, setActivity] = useState(null);
+
+  const [settings, setSettings] = useState(() => loadSettings());
+  const [connectors, setConnectors] = useState(() => listConnectors());
+
+  const [mode, setMode] = useState("chat");
+  const [section, setSection] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -36,12 +56,18 @@ export default function App() {
   // chats mid-stream can't drop a reply into the wrong conversation.
   const chatIdRef = useRef(null);
 
+  const artifacts = useMemo(() => extractArtifacts(messages), [messages]);
+
   useEffect(() => {
-    threadRef.current?.scrollTo({
-      top: threadRef.current.scrollHeight,
-      behavior: "smooth"
-    });
-  }, [messages, streaming]);
+    applyTheme(settings);
+    saveSettings(settings);
+  }, [settings]);
+
+  useEffect(() => {
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, streaming, activity]);
+
+  const updateSettings = useCallback((patch) => setSettings((s) => ({ ...s, ...patch })), []);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -54,7 +80,9 @@ export default function App() {
     setActiveId(null);
     setMessages([]);
     setError(null);
+    setNotice(null);
     setStreaming(false);
+    setMode("chat");
     setDrawerOpen(false);
   }, [stop]);
 
@@ -65,7 +93,9 @@ export default function App() {
       setActiveId(chat.id);
       setMessages(chat.messages || []);
       setError(null);
+      setNotice(null);
       setStreaming(false);
+      setMode("chat");
       setDrawerOpen(false);
     },
     [stop]
@@ -80,9 +110,17 @@ export default function App() {
     [newChat]
   );
 
+  const toggleSection = useCallback((next) => {
+    setSection((current) => (current === next ? null : next));
+    setDrawerOpen(false);
+  }, []);
+
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") setDrawerOpen(false);
+      if (e.key === "Escape") {
+        setDrawerOpen(false);
+        setSection(null);
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         newChat();
@@ -96,6 +134,8 @@ export default function App() {
     const isCurrent = () => chatIdRef.current === chatId;
 
     setError(null);
+    setNotice(null);
+    setActivity(null);
     setStreaming(true);
     if (isCurrent()) setMessages([...base, { role: "selflight", text: "" }]);
 
@@ -108,9 +148,16 @@ export default function App() {
     try {
       await streamChat(base, {
         signal: controller.signal,
+        settings,
+        connectors,
+        onActivity: (next) => isCurrent() && setActivity(next),
+        onNotice: (text) => isCurrent() && setNotice(text),
         onText: (chunk) => {
           acc += chunk;
-          if (isCurrent()) setMessages([...base, { role: "selflight", text: acc }]);
+          if (isCurrent()) {
+            setActivity(null);
+            setMessages([...base, { role: "selflight", text: acc }]);
+          }
         }
       });
     } catch (err) {
@@ -121,6 +168,7 @@ export default function App() {
     const final = acc ? [...base, { role: "selflight", text: acc }] : base;
 
     setStreaming(false);
+    setActivity(null);
     abortRef.current = null;
 
     if (isCurrent()) {
@@ -173,10 +221,35 @@ export default function App() {
     if (base.length) runTurn(base, chatIdRef.current);
   };
 
+  const connectorApi = {
+    items: connectors,
+    add: (data) => {
+      addConnector(data);
+      setConnectors(listConnectors());
+    },
+    update: (id, fields) => {
+      updateConnector(id, fields);
+      setConnectors(listConnectors());
+    },
+    remove: (id) => {
+      removeConnector(id);
+      setConnectors(listConnectors());
+    }
+  };
+
   const sidebar = (onCollapse) => (
     <Sidebar
       chats={chats}
       activeId={activeId}
+      mode={mode}
+      onMode={(m) => {
+        setMode(m);
+        setDrawerOpen(false);
+      }}
+      section={section}
+      onSection={toggleSection}
+      artifactCount={artifacts.length}
+      name={settings.callMe}
       onNew={newChat}
       onOpen={openChat}
       onDelete={removeChat}
@@ -185,17 +258,23 @@ export default function App() {
   );
 
   const activeTitle = chats.find((c) => c.id === activeId)?.title;
+  const ActivityIcon = activity ? ACTIVITY_ICONS[activity.kind] || Sparkles : null;
+  const enabledConnectors = connectors.filter((c) => c.enabled).length;
 
   return (
     <div className="flex h-full overflow-hidden">
-      {sidebarOpen && <div className="hidden md:flex">{sidebar(() => setSidebarOpen(false))}</div>}
+      {sidebarOpen && (
+        <div className="hidden border-r border-line md:flex">
+          {sidebar(() => setSidebarOpen(false))}
+        </div>
+      )}
 
       {drawerOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <button
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-ink/20"
+            className="absolute inset-0 bg-ink/25"
           />
           {/* On mobile the same button dismisses the drawer rather than
               collapsing the desktop sidebar the person can't currently see. */}
@@ -205,11 +284,11 @@ export default function App() {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-line px-3">
           <button
             onClick={() => setDrawerOpen(true)}
-            aria-label="Show chats"
+            aria-label="Show menu"
             className="rounded-md p-1.5 text-muted transition-colors hover:bg-panel hover:text-ink md:hidden"
           >
             <PanelLeft className="h-[18px] w-[18px]" strokeWidth={2} />
@@ -227,10 +306,10 @@ export default function App() {
 
           <span
             className={`min-w-0 flex-1 truncate text-[14px] ${
-              activeTitle ? "font-medium" : "text-soft"
+              mode === "code" || activeTitle ? "font-medium" : "text-soft"
             }`}
           >
-            {activeTitle || "New chat"}
+            {mode === "code" ? "Code" : activeTitle || "New chat"}
           </span>
 
           <button
@@ -242,60 +321,97 @@ export default function App() {
           </button>
         </header>
 
-        <div ref={threadRef} className="no-scrollbar flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[720px] px-4 py-6">
-            {messages.length === 0 ? (
-              <div className="pt-[12vh]">
-                <h1 className="text-[26px] font-semibold tracking-[-0.5px]">Selflight</h1>
-                <p className="mt-1.5 text-[15px] text-muted">What are you working on?</p>
+        {mode === "code" ? (
+          <Build />
+        ) : (
+          <>
+            <div ref={threadRef} className="thin-scrollbar flex-1 overflow-y-auto">
+              <div className="mx-auto w-full max-w-[760px] px-4 py-6">
+                {messages.length === 0 ? (
+                  <div className="pt-[11vh]">
+                    <h1 className="text-[27px] font-semibold tracking-[-0.5px]">Selflight</h1>
+                    <p className="mt-1.5 text-[15px] text-muted">
+                      {settings.callMe ? `What are you working on, ${settings.callMe}?` : "What are you working on?"}
+                    </p>
 
-                <div className="mt-7 flex flex-wrap gap-2">
-                  {SUGGESTIONS.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => send(s)}
-                      className="rounded-full border border-line bg-white px-3.5 py-2 text-[13.5px] text-muted transition-colors hover:border-soft hover:text-ink"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {messages.map((m, i) => (
-                  <Message
-                    key={i}
-                    message={m}
-                    streaming={streaming && i === messages.length - 1 && m.role === "selflight"}
-                  />
-                ))}
+                    <div className="mt-7 flex flex-wrap gap-2">
+                      {SUGGESTIONS.map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => send(s)}
+                          className="rounded-full border border-line bg-surface px-3.5 py-2 text-[13.5px] text-muted transition-colors hover:border-soft hover:text-ink"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {messages.map((m, i) => (
+                      <Message
+                        key={i}
+                        message={m}
+                        streaming={streaming && i === messages.length - 1 && m.role === "selflight"}
+                      />
+                    ))}
 
-                {error && (
-                  <div className="flex items-center gap-3 rounded-xl border border-line bg-white px-3.5 py-2.5 text-[13.5px] text-muted">
-                    <span className="flex-1">{error}</span>
-                    <button
-                      onClick={retry}
-                      className="flex shrink-0 items-center gap-1.5 font-medium text-ink hover:text-accent"
-                    >
-                      <RotateCw className="h-3.5 w-3.5" strokeWidth={2.2} />
-                      Retry
-                    </button>
+                    {activity && (
+                      <div className="flex items-center gap-2 text-[13px] text-muted">
+                        <ActivityIcon className="h-3.5 w-3.5 animate-pulse" strokeWidth={2} />
+                        {activity.label}…
+                      </div>
+                    )}
+
+                    {notice && (
+                      <div className="flex items-start gap-2 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[13px] text-muted">
+                        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                        <span>{notice}</span>
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[13.5px] text-muted">
+                        <span className="flex-1">{error}</span>
+                        <button
+                          onClick={retry}
+                          className="flex shrink-0 items-center gap-1.5 font-medium text-ink hover:text-accent"
+                        >
+                          <RotateCw className="h-3.5 w-3.5" strokeWidth={2.2} />
+                          Retry
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        <Composer
-          value={input}
-          onChange={setInput}
-          onSend={() => send()}
-          onStop={stop}
-          streaming={streaming}
-        />
-      </div>
+            <Composer
+              value={input}
+              onChange={setInput}
+              onSend={() => send()}
+              onStop={stop}
+              streaming={streaming}
+              settings={settings}
+              connectorCount={enabledConnectors}
+            />
+          </>
+        )}
+      </main>
+
+      {section && (
+        <div className="fixed inset-0 z-50 bg-page md:static md:z-auto md:shrink-0">
+          <RightPanel
+            section={section}
+            onClose={() => setSection(null)}
+            artifacts={artifacts}
+            settings={settings}
+            onSettings={updateSettings}
+            connectors={connectorApi}
+          />
+        </div>
+      )}
     </div>
   );
 }
