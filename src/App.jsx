@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Globe, Info, Link2, PanelLeft, Plus, RotateCw, Search, Sparkles } from "lucide-react";
+import { ArrowDown, Globe, Info, Link2, PanelLeft, Plus, RotateCw, Search, Sparkles } from "lucide-react";
 import Sidebar from "./components/Sidebar.jsx";
 import Message from "./components/Message.jsx";
 import Composer from "./components/Composer.jsx";
@@ -49,6 +49,10 @@ export default function App() {
   const [section, setSection] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Auto-scroll only while the reader is already at the bottom, so scrolling up
+  // to re-read something mid-reply doesn't yank them back down.
+  const [pinned, setPinned] = useState(true);
+  const [focusSignal, setFocusSignal] = useState(0);
 
   const threadRef = useRef(null);
   const abortRef = useRef(null);
@@ -64,8 +68,20 @@ export default function App() {
   }, [settings]);
 
   useEffect(() => {
+    if (!pinned) return;
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, streaming, activity]);
+  }, [messages, streaming, activity, pinned]);
+
+  const onThreadScroll = () => {
+    const el = threadRef.current;
+    if (!el) return;
+    setPinned(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+  };
+
+  const jumpToLatest = () => {
+    setPinned(true);
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
+  };
 
   const updateSettings = useCallback((patch) => setSettings((s) => ({ ...s, ...patch })), []);
 
@@ -84,6 +100,8 @@ export default function App() {
     setStreaming(false);
     setMode("chat");
     setDrawerOpen(false);
+    setPinned(true);
+    setFocusSignal((n) => n + 1);
   }, [stop]);
 
   const openChat = useCallback(
@@ -97,6 +115,8 @@ export default function App() {
       setStreaming(false);
       setMode("chat");
       setDrawerOpen(false);
+      setPinned(true);
+      setFocusSignal((n) => n + 1);
     },
     [stop]
   );
@@ -249,6 +269,7 @@ export default function App() {
       section={section}
       onSection={toggleSection}
       artifactCount={artifacts.length}
+      connectorCount={connectors.filter((c) => c.enabled).length}
       name={settings.callMe}
       onNew={newChat}
       onOpen={openChat}
@@ -325,7 +346,11 @@ export default function App() {
           <Build />
         ) : (
           <>
-            <div ref={threadRef} className="thin-scrollbar flex-1 overflow-y-auto">
+            <div
+              ref={threadRef}
+              onScroll={onThreadScroll}
+              className="thin-scrollbar relative flex-1 overflow-y-auto"
+            >
               <div className="mx-auto w-full max-w-[760px] px-4 py-6">
                 {messages.length === 0 ? (
                   <div className="pt-[11vh]">
@@ -348,13 +373,19 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {messages.map((m, i) => (
-                      <Message
-                        key={i}
-                        message={m}
-                        streaming={streaming && i === messages.length - 1 && m.role === "selflight"}
-                      />
-                    ))}
+                    {messages.map((m, i) => {
+                      const last = i === messages.length - 1;
+                      return (
+                        <Message
+                          key={i}
+                          message={m}
+                          streaming={streaming && last && m.role === "selflight"}
+                          onRegenerate={
+                            last && m.role === "selflight" && !streaming ? retry : undefined
+                          }
+                        />
+                      );
+                    })}
 
                     {activity && (
                       <div className="flex items-center gap-2 text-[13px] text-muted">
@@ -387,15 +418,28 @@ export default function App() {
               </div>
             </div>
 
-            <Composer
-              value={input}
-              onChange={setInput}
-              onSend={() => send()}
-              onStop={stop}
-              streaming={streaming}
-              settings={settings}
-              connectorCount={enabledConnectors}
-            />
+            <div className="relative">
+              {!pinned && messages.length > 0 && (
+                <button
+                  onClick={jumpToLatest}
+                  aria-label="Jump to latest"
+                  className="rise absolute -top-11 left-1/2 z-10 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-md transition-colors hover:text-ink"
+                >
+                  <ArrowDown className="h-4 w-4" strokeWidth={2.2} />
+                </button>
+              )}
+
+              <Composer
+                value={input}
+                onChange={setInput}
+                onSend={() => send()}
+                onStop={stop}
+                streaming={streaming}
+                settings={settings}
+                connectorCount={enabledConnectors}
+                focusSignal={focusSignal}
+              />
+            </div>
           </>
         )}
       </main>

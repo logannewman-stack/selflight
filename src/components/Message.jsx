@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Check, Copy, RotateCw } from "lucide-react";
 
 const markdown = {
   p: (props) => <p className="mb-3 leading-[1.65] last:mb-0" {...props} />,
@@ -50,7 +51,7 @@ const markdown = {
   td: (props) => <td className="border-b border-line px-3 py-2 align-top" {...props} />
 };
 
-export default function Message({ message, streaming }) {
+export default function Message({ message, streaming, onRegenerate }) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end rise">
@@ -75,12 +76,64 @@ export default function Message({ message, streaming }) {
   }
 
   return (
-    <div className="text-ink" style={{ fontSize: "var(--msg-size)" }}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdown}>
-        {message.text}
-      </ReactMarkdown>
-      {streaming && <span className="caret" aria-hidden="true" />}
+    <div className="group">
+      <div className="text-ink" style={{ fontSize: "var(--msg-size)" }}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdown}>
+          {message.text}
+        </ReactMarkdown>
+        {streaming && <span className="caret" aria-hidden="true" />}
+      </div>
+
+      {!streaming && message.text && (
+        <div className="mt-2 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          <CopyButton text={message.text} />
+          {onRegenerate && (
+            <Action onClick={onRegenerate} label="Regenerate this reply">
+              <RotateCw className="h-3.5 w-3.5" strokeWidth={2} />
+              Retry
+            </Action>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+function CopyButton({ text }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      // Clipboard is blocked outside a secure context; the text is selectable.
+    }
+  };
+
+  return (
+    <Action onClick={copy} label="Copy reply">
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-accent" strokeWidth={2.4} />
+      ) : (
+        <Copy className="h-3.5 w-3.5" strokeWidth={2} />
+      )}
+      {copied ? "Copied" : "Copy"}
+    </Action>
+  );
+}
+
+function Action({ children, onClick, label }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:bg-panel hover:text-ink"
+    >
+      {children}
+    </button>
   );
 }
 

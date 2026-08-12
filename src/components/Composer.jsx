@@ -1,7 +1,16 @@
 import React, { useEffect, useRef } from "react";
 import { ArrowUp, Globe, Link2, Square } from "lucide-react";
 
-export default function Composer({ value, onChange, onSend, onStop, streaming, settings, connectorCount }) {
+export default function Composer({
+  value,
+  onChange,
+  onSend,
+  onStop,
+  streaming,
+  settings,
+  connectorCount,
+  focusSignal
+}) {
   const ref = useRef(null);
 
   // Grow with the text, then scroll instead of pushing the thread off screen.
@@ -11,6 +20,13 @@ export default function Composer({ value, onChange, onSend, onStop, streaming, s
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [value]);
+
+  // Focus on desktop when a chat opens. Skipped on touch layouts, where it
+  // would throw up the keyboard over the conversation you just opened.
+  useEffect(() => {
+    if (!focusSignal) return;
+    if (window.matchMedia?.("(min-width: 768px)").matches) ref.current?.focus();
+  }, [focusSignal]);
 
   const keyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
