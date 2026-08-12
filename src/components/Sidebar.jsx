@@ -3,7 +3,6 @@ import {
   Code2,
   Home,
   Link2,
-  Palette,
   PanelLeft,
   Plus,
   Search,
@@ -42,6 +41,7 @@ export default function Sidebar({
   onSection,
   artifactCount,
   connectorCount,
+  settingsTab,
   name,
   onNew,
   onOpen,
@@ -120,8 +120,8 @@ export default function Sidebar({
           icon={Link2}
           label="Connectors"
           badge={connectorCount || null}
-          active={section === "connectors"}
-          onClick={() => onSection("connectors")}
+          active={section === "settings" && settingsTab === "connectors"}
+          onClick={() => onSection("settings", "connectors")}
         />
       </nav>
 
@@ -194,89 +194,27 @@ export default function Sidebar({
         ))}
       </div>
 
-      <SettingsMenu name={name} section={section} onSection={onSection} />
+      <div className="border-t border-line p-2">
+        <button
+          onClick={() => onSection("settings")}
+          aria-label="Settings"
+          className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+            section === "settings" || section === "palette"
+              ? "bg-surface"
+              : "hover:bg-surface/60"
+          }`}
+        >
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-2xs font-bold text-page">
+            {(name || "You").slice(0, 2).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{name || "You"}</span>
+          <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-soft" strokeWidth={2} />
+        </button>
+      </div>
     </div>
   );
 }
 
-function SettingsMenu({ name, section, onSection }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e) => {
-      if (!ref.current?.contains(e.target)) setOpen(false);
-    };
-    const escape = (e) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
-
-  const pick = (next) => {
-    onSection(next);
-    setOpen(false);
-  };
-
-  return (
-    <div ref={ref} className="relative border-t border-line p-2">
-      {open && (
-        <div className="rise absolute bottom-[calc(100%-4px)] left-2 right-2 overflow-hidden rounded-xl border border-line bg-surface shadow-lg">
-          <MenuItem
-            icon={SlidersHorizontal}
-            label="Customize"
-            hint="Tone, memory, instructions"
-            active={section === "customize"}
-            onClick={() => pick("customize")}
-          />
-          <MenuItem
-            icon={Palette}
-            label="Design"
-            hint="Colours, text size, motion"
-            active={section === "design"}
-            onClick={() => pick("design")}
-          />
-        </div>
-      )}
-
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-label="Settings"
-        className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-          open ? "bg-surface" : "hover:bg-surface/60"
-        }`}
-      >
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-2xs font-bold text-page">
-          {(name || "You").slice(0, 2).toUpperCase()}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{name || "You"}</span>
-        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-soft" strokeWidth={2} />
-      </button>
-    </div>
-  );
-}
-
-function MenuItem({ icon: Icon, label, hint, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-panel ${
-        active ? "bg-panel" : ""
-      }`}
-    >
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted" strokeWidth={2} />
-      <span className="min-w-0">
-        <span className="block text-base font-medium">{label}</span>
-        <span className="block text-xs text-muted">{hint}</span>
-      </span>
-    </button>
-  );
-}
 
 function Segment({ icon: Icon, label, active, onClick }) {
   return (

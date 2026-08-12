@@ -59,6 +59,7 @@ export default function App() {
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
+  const [settingsTab, setSettingsTab] = useState("assistant");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Auto-scroll only while the reader is already at the bottom, so scrolling up
@@ -168,11 +169,17 @@ export default function App() {
     [newChat]
   );
 
-  const toggleSection = useCallback((next) => {
+  const toggleSection = useCallback((next, tab) => {
     setDraft(null);
-    setSection((current) => (current === next ? null : next));
+    if (tab) setSettingsTab(tab);
+    setSection((current) => {
+      // Re-clicking a nav item closes the panel, except when it points at a
+      // different Settings tab than the one already showing.
+      const sameTarget = current === next && (!tab || tab === settingsTab);
+      return sameTarget ? null : next;
+    });
     setDrawerOpen(false);
-  }, []);
+  }, [settingsTab]);
 
   const closePanel = useCallback(() => {
     setDraft(null);
@@ -324,12 +331,14 @@ export default function App() {
       setPalettes(listPalettes());
       setDraft(null);
       selectPalette(saved);
-      setSection("design");
+      setSettingsTab("appearance");
+      setSection("settings");
     },
 
     cancel: () => {
       setDraft(null);
-      setSection("design");
+      setSettingsTab("appearance");
+      setSection("settings");
     },
 
     remove: () => {
@@ -344,7 +353,8 @@ export default function App() {
         lightTheme: s.lightTheme === id ? "paper" : s.lightTheme,
         darkTheme: s.darkTheme === id ? "midnight" : s.darkTheme
       }));
-      setSection("design");
+      setSettingsTab("appearance");
+      setSection("settings");
     },
 
     import: (text) => {
@@ -386,6 +396,7 @@ export default function App() {
         setDrawerOpen(false);
       }}
       section={section}
+      settingsTab={settingsTab}
       onSection={toggleSection}
       artifactCount={artifacts.length}
       connectorCount={connectors.filter((c) => c.enabled).length}
@@ -568,6 +579,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-page md:static md:z-auto md:shrink-0">
           <RightPanel
             section={section}
+            settingsTab={settingsTab}
+            onSettingsTab={setSettingsTab}
             onClose={closePanel}
             artifacts={artifacts}
             settings={settings}

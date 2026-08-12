@@ -47,12 +47,11 @@ Previews run in a sandboxed frame with no access to the app around them.
 watch it get written, see it run, edit the code by hand, and keep asking for changes.
 The output is one self-contained HTML file.
 
-**Connectors** attach remote MCP servers so Selflight can use their tools mid-chat.
-
-**Customize** sets tone, answer length, thinking depth, what to call you, and standing
-instructions — all folded into the system prompt on the server.
-
-**Design** is where the interface is yours to shape:
+**Settings** is one panel with three tabs, reached from the account chip at the bottom
+left. **Assistant** sets tone, answer length, thinking depth, what to call you, and
+standing instructions — all folded into the system prompt on the server. **Connectors**
+attaches remote MCP servers and toggles web search and fetch. **Appearance** is where the
+interface is yours to shape:
 
 | Group | Options |
 | --- | --- |
@@ -133,24 +132,66 @@ the message. The same fallback applies to web search.
 Tokens you enter are stored in your browser's `localStorage` and sent to your own
 serverless function, which forwards them to the API.
 
+## Proving the settings actually do something
+
+Reasonable question for a panel with this many switches. Two suites answer it, and you can
+run both yourself.
+
+**The Assistant and Connectors settings reach the model.** `api/prompt.js` builds the exact
+request pieces — system prompt, effort, tools, MCP servers — and `npm test` asserts on them
+directly. No network, no API key, no dependencies:
+
+```bash
+npm test        # 17 tests
+```
+
+It checks that tone changes the prompt, that standing instructions are passed through
+verbatim, that thinking depth becomes the `effort` parameter, that the web-search toggle
+adds and removes a real tool, that a connector becomes an `mcp_servers` entry *and* the
+matching toolset the API requires, that a paused connector is not sent at all, and that
+failed turns are never replayed to the model.
+
+**The appearance settings reach the pixels.** For each control, `verify/appearance.mjs`
+reads the computed style of a real element before and after — an actual paragraph, the
+composer, a code block — and hashes a screenshot to confirm the rendering moved too:
+
+```bash
+npm run dev                      # in one terminal
+npx playwright install chromium  # once
+npm run verify:appearance        # in another
+```
+
+It prints a before/after table for all 18 controls. A decorative button would show an
+unchanged computed style, an unchanged screenshot, or both.
+
+Two things that suite taught me, in case you extend it: a newly-chosen typeface has to be
+fetched before it paints, so the computed font-family changes a beat before the pixels do —
+wait on `document.fonts.load()` or the check races. And the conversation lives in a scroll
+container, so screenshotting that element captures only the visible slice; the fixture is
+kept short enough to fit on screen, and the hash covers the whole viewport.
+
 ## How it's put together
 
 | Path | What it does |
 | --- | --- |
-| `api/chat.js` | Calls the model, assembles tools and connectors, streams replies and tool activity back as server-sent events. Also builds pages and generates titles. |
+| `api/chat.js` | Calls the model, streams replies and tool activity back as server-sent events. Also builds pages and generates titles. |
+| `api/prompt.js` | Turns settings into the system prompt, effort, tools, and MCP servers. Tested by `api/prompt.test.mjs`. |
 | `src/App.jsx` | Layout, chat state, and the send/stream/retry cycle. |
 | `src/lib/api.js` | Browser side of the stream. |
 | `src/lib/storage.js` | Chats, settings, and connectors in `localStorage`. |
 | `src/lib/themes.js` | Palettes, applied as CSS variables. |
 | `src/lib/artifacts.js` | Pulls code blocks out of replies. |
-| `src/components/panels/` | Artifacts, Build, Connectors, Customize, Design. |
+| `src/components/panels/` | Settings (Assistant / Appearance / Connectors tabs), Artifacts, Build, and the palette editor. |
+| `verify/appearance.mjs` | Measures every appearance control against real computed styles and pixels. |
 
 ## Things you'll probably want to change
 
-Near the top of `api/chat.js`:
+`api/prompt.js`:
 
 - **`BASE_PROMPT`** — Selflight's personality and rules. The highest-leverage text in
   the project; editing it changes the product more than any UI change will.
+And in `api/chat.js`:
+
 - **`MODEL`** — `claude-opus-5` is the most capable. `claude-sonnet-5` costs roughly
   half per token; `claude-haiku-4-5` a fraction of that.
 - **`CONTEXT_WINDOW`** — how many past messages get resent each turn. Cost scales with

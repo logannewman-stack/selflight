@@ -1,21 +1,19 @@
 import React from "react";
-import { X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import Artifacts from "./panels/Artifacts.jsx";
-import Connectors from "./panels/Connectors.jsx";
-import Customize from "./panels/Customize.jsx";
-import Design from "./panels/Design.jsx";
+import Settings from "./panels/Settings.jsx";
 import PaletteEditor from "./panels/PaletteEditor.jsx";
 
 const TITLES = {
   artifacts: "Artifacts",
-  connectors: "Connectors",
-  customize: "Customize",
-  design: "Design",
+  settings: "Settings",
   palette: "Colour package"
 };
 
 export default function RightPanel({
   section,
+  settingsTab,
+  onSettingsTab,
   onClose,
   artifacts,
   settings,
@@ -26,8 +24,23 @@ export default function RightPanel({
 }) {
   return (
     <aside className="slide-in flex h-full w-full flex-col border-l border-line bg-page md:w-[400px] lg:w-[460px]">
-      <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-line px-4">
-        <span className="flex-1 text-base font-semibold tracking-[-0.005em]">{TITLES[section]}</span>
+      <header className="flex h-[52px] shrink-0 items-center gap-1 border-b border-line px-3">
+        {/* The editor is a detour off Appearance, so it gets a way back rather
+            than only a way out. */}
+        {section === "palette" && (
+          <button
+            onClick={palette.cancel}
+            aria-label="Back to appearance"
+            className="rounded-md p-1.5 text-muted transition-colors hover:bg-panel hover:text-ink"
+          >
+            <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
+          </button>
+        )}
+
+        <span className="flex-1 truncate px-1 text-base font-semibold tracking-[-0.005em]">
+          {TITLES[section]}
+        </span>
+
         <button
           onClick={onClose}
           aria-label="Close panel"
@@ -40,27 +53,15 @@ export default function RightPanel({
       <div className="min-h-0 flex-1">
         {section === "artifacts" && <Artifacts artifacts={artifacts} />}
 
-        {section === "connectors" && (
-          <Connectors
+        {section === "settings" && (
+          <Settings
+            tab={settingsTab}
+            onTab={onSettingsTab}
             settings={settings}
             onSettings={onSettings}
-            connectors={connectors.items}
-            onAdd={connectors.add}
-            onUpdate={connectors.update}
-            onRemove={connectors.remove}
-          />
-        )}
-
-        {section === "customize" && <Customize settings={settings} onSettings={onSettings} />}
-
-        {section === "design" && (
-          <Design
-            settings={settings}
-            onSettings={onSettings}
+            connectors={connectors}
             themes={themes}
-            onEditPalette={palette.edit}
-            onNewPalette={palette.create}
-            onImportPalette={palette.import}
+            palette={palette}
           />
         )}
 
