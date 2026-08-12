@@ -39,7 +39,17 @@ const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
 const failures = [];
 page.on("pageerror", (e) => failures.push(`page error: ${e.message}`));
 
-// Stub the model so this measures the interface, not the API.
+// Without a key the app shows its setup screen instead of the chat, which is
+// right for a person and wrong for this suite — it measures the interface, so
+// it says a model is configured and stubs the model itself.
+await page.route("**/api/capabilities", (route) =>
+  route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ provider: "Perplexity", configured: true, connectors: false, searchAlwaysOn: true })
+  })
+);
+
 await page.route("**/api/chat", (route) => {
   const body = route.request().postDataJSON();
   if (body?.task === "title") {

@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 // Every route the api/ folder exposes. Vercel derives these from the filenames;
 // during `npm run dev` there's no Vercel runtime, so the same handlers get
 // mounted as Vite middleware and `npm run dev` alone gives you a working app.
-const ROUTES = ["chat", "connectors", "capabilities"];
+const ROUTES = ["chat", "connectors", "capabilities", "doctor"];
 
 // Server-only secrets. Vite deliberately withholds anything without a VITE_
 // prefix from the browser, which is what we want for these — but it means the

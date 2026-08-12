@@ -5,6 +5,7 @@ import Message from "./components/Message.jsx";
 import Composer from "./components/Composer.jsx";
 import RightPanel from "./components/RightPanel.jsx";
 import SignIn from "./components/SignIn.jsx";
+import Setup from "./components/Setup.jsx";
 import Build from "./components/panels/Build.jsx";
 import { capabilities, generateTitle, streamChat } from "./lib/api.js";
 import { extractArtifacts } from "./lib/artifacts.js";
@@ -54,6 +55,9 @@ export default function App() {
   // What the configured model can do. Until it answers, assume the fuller set —
   // hiding a working feature for a moment is worse than showing it.
   const [can, setCan] = useState({ provider: null, connectors: true, searchAlwaysOn: false });
+  // Set once the setup screen has been dismissed, so it can be looked at again
+  // without being stuck behind it.
+  const [setupDone, setSetupDone] = useState(false);
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
@@ -498,6 +502,11 @@ export default function App() {
   // The theme is already applied to <html>, so an empty page here is a themed
   // one rather than a white flash.
   if (!authReady) return <div className="h-full bg-page" />;
+
+  // Nothing can work without a model key, and "type a message, get an error"
+  // is a poor way to learn that. Say what's missing and how to fix it instead.
+  if (can.configured === false && !setupDone) return <Setup onDone={() => setSetupDone(true)} />;
+
   if (hasSupabase && !user) return <SignIn />;
 
   return (
