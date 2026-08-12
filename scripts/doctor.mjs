@@ -353,6 +353,13 @@ async function checkDeployment(base) {
 
   try {
     const res = await fetch(new URL("/api/capabilities", base));
+    if (blocked(res)) {
+      return warn(
+        `Couldn't reach ${new URL(base).host} from here (${res.status})`,
+        "The connection was refused before it got there, so nothing below could be checked. Open the address in a browser instead."
+      );
+    }
+
     if (!res.ok) {
       return bad(
         `/api/capabilities returned ${res.status}`,
@@ -395,6 +402,14 @@ async function checkDeployment(base) {
   }
 }
 
+// A refusal from the network rather than from the site. Vercel stamps every
+// response it serves, so a 403 without that stamp came from somewhere in
+// between and says nothing about the deployment.
+function blocked(res) {
+  if (res.status !== 403 && res.status !== 407) return false;
+  return !res.headers.get("x-vercel-id") && !res.headers.get("server");
+}
+
 async function checkHttps(base) {
   let url;
   try {
@@ -404,13 +419,24 @@ async function checkHttps(base) {
   }
 
   if (url.protocol === "https:") {
-    // Reaching it at all over https means the certificate checked out — Node
-    // refuses the connection otherwise, which is exactly the check we want.
     try {
-      await fetch(url.origin, { method: "HEAD" });
-      ok("Served over https with a valid certificate", "the microphone will work here");
+      const res = await fetch(url.origin, { method: "HEAD" });
+
+      // A response is not the same as *your* response. A corporate proxy, a
+      // captive network, or a sandbox's egress policy will answer 403 to the
+      // connection itself, and fetch reports that as an ordinary reply rather
+      // than throwing — so an unauthenticated 403/407 means "something in
+      // between answered", not "your site said no".
+      if (blocked(res)) {
+        return warn(
+          `Something between here and ${url.host} refused the connection (${res.status})`,
+          "A proxy, a firewall, or Vercel's Deployment Protection. Open the address in a browser — that's the answer that counts."
+        );
+      }
+
+      ok(`Served over https (${res.status})`, "certificate verified — the microphone will work here");
     } catch (err) {
-      bad("The https certificate wasn't accepted", err.message);
+      bad("Couldn't establish https", err.message);
     }
     return;
   }
