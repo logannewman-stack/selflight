@@ -100,7 +100,7 @@ interface is yours to shape:
 
 | Group | Options |
 | --- | --- |
-| Colour packages | Six built-in palettes, match-system light/dark pairing, nine accent colours, plus your own packages — see below |
+| Colour packages | Six built-in palettes, match-system light/dark pairing, nine accent colours *or any colour you pick*, a **main colour** that re-tints the whole interface, plus your own packages — see below |
 | Typefaces | 25 faces, chosen separately for interface, replies, and code |
 | Typography | Text size, weight, line spacing, letter spacing, paragraph spacing, heading size, reduced motion |
 | Layout | Density, conversation width, corner rounding, bubble or plain user messages |
@@ -109,6 +109,22 @@ interface is yours to shape:
 
 Everything applies instantly, persists, and has a reset that leaves your chats,
 instructions, and saved packages alone.
+
+### Recolouring the whole app from one pick
+
+**Main colour** in Appearance is the quick version of a palette. Pick a colour and every
+surface and text colour is derived from it — panels, borders, code background, primary and
+secondary text — and a dark enough choice flips the app to a dark theme on its own. Contrast
+ratios for the pairs that matter appear underneath, so an unreadable choice can't be made
+quietly.
+
+The ratios that generate those surfaces aren't invented: they're the ones that reproduce the
+hand-made palettes almost exactly when fed Paper's page colour or Midnight's. That's why a
+colour you pick lands in the same relationships a designer would have reached for, and why
+the hue carries through the greys rather than leaving them flatly neutral.
+
+Accent is separate, and the last swatch in the row opens a colour picker — the nine presets
+are a starting point, not the whole set.
 
 ### Writing your own colour package
 
@@ -222,7 +238,7 @@ npx playwright install chromium  # once
 npm run verify:appearance        # in another
 ```
 
-It prints a before/after table for all 18 controls. A decorative button would show an
+It prints a before/after table for all 21 controls. A decorative button would show an
 unchanged computed style, an unchanged screenshot, or both.
 
 Two things that suite taught me, in case you extend it: a newly-chosen typeface has to be

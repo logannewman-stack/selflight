@@ -78,6 +78,9 @@ export const DEFAULT_SETTINGS = {
   lightTheme: "paper",
   darkTheme: "midnight",
   accent: "palette",
+  accentCustom: "",
+  // A colour the whole interface is derived from. Empty means the palette's own.
+  baseColor: "",
 
   // Layout
   density: "comfortable",

@@ -99,6 +99,55 @@ export function isDarkPalette(vars) {
   return luminance(vars.page) < 0.25;
 }
 
+/* ------------------------------ tinting ------------------------------- */
+
+function mix(triplet, toward, amount) {
+  const [r, g, b] = parseTriplet(triplet);
+  const blend = (channel) => Math.round(channel + (toward - channel) * amount);
+  return `${blend(r)} ${blend(g)} ${blend(b)}`;
+}
+
+// Every surface and text colour, derived from one chosen background.
+//
+// The ratios below aren't invented: they're the ones that reproduce the
+// hand-made palettes almost exactly when you feed them Paper's page colour or
+// Midnight's. So a colour you pick lands in the same relationships a designer
+// would have reached for, and the hue you chose carries through the greys
+// instead of leaving them flatly neutral.
+export function tintFrom(base) {
+  const page = /^#|^[0-9a-f]{3,6}$/i.test(String(base).trim())
+    ? hexToTriplet(base)
+    : String(base).trim();
+
+  const dark = luminance(page) < 0.35;
+
+  // Text moves away from the background; raised surfaces move toward it.
+  const toText = (amount) => mix(page, dark ? 255 : 0, amount);
+  const toLight = (amount) => mix(page, 255, amount);
+  const toDark = (amount) => mix(page, 0, amount);
+
+  const ink = toText(0.9);
+
+  const surfaces = dark
+    ? { panel: toLight(0.035), surface: toLight(0.06), raised: toLight(0.1), code: toDark(0.35) }
+    : { panel: toDark(0.04), surface: toLight(0.55), raised: toLight(0.75), code: toDark(0.055) };
+
+  return {
+    dark,
+    vars: {
+      page,
+      ...surfaces,
+      line: toText(dark ? 0.14 : 0.12),
+      ink,
+      muted: toText(0.55),
+      soft: toText(0.36),
+      // Your own messages read as the inverse of the page, whichever way it went.
+      bubble: ink,
+      bubbleInk: page
+    }
+  };
+}
+
 /* ------------------------------- storage ------------------------------- */
 
 function read() {

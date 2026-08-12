@@ -99,6 +99,7 @@ const probe = () =>
 
     return {
       pageBackground: cs(document.body, "backgroundColor"),
+      sidebarBackground: cs(pick(".bg-panel"), "backgroundColor"),
       accentColour: cs(accentEl, "backgroundColor"),
       uiFont: cs(document.body, "fontFamily").split(",")[0].replace(/"/g, ""),
       replyFont: cs(reply, "fontFamily").split(",")[0].replace(/"/g, ""),
@@ -189,6 +190,25 @@ await verify("Palette", "pageBackground", async () => {
   await page.getByRole("button", { name: /^Nocturne Near-black/ }).click();
 });
 await verify("Accent", "accentColour", () => page.getByLabel("Accent: Violet").click());
+
+// Any colour, not just the nine presets.
+await verify("Custom accent", "accentColour", () =>
+  page.getByLabel("Accent: custom").fill("#00B894")
+);
+
+// One pick re-derives every surface and text colour, and a dark enough choice
+// flips the whole app to a dark theme — so this checks the sidebar moved too,
+// not just the page behind it.
+await verify("Main colour", "pageBackground", async () => {
+  const hex = page.getByLabel("Main colour, as hex");
+  await hex.fill("#123A5E");
+  await hex.press("Enter");
+});
+await verify("Main colour · derived surfaces", "sidebarBackground", async () => {
+  const hex = page.getByLabel("Main colour, as hex");
+  await hex.fill("#F6EBD9");
+  await hex.press("Enter");
+});
 
 // Typefaces. A newly-chosen face has to be fetched before it paints, so the
 // computed family changes a beat before the pixels do — wait for the font to

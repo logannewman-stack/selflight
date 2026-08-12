@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Check, ClipboardPaste, Pencil, Plus, RotateCcw } from "lucide-react";
 import {
   ACCENTS,
+  accentFor,
   BUBBLE_STYLES,
   CODE_SIZES,
   CORNERS,
@@ -16,6 +17,7 @@ import {
   WIDTHS
 } from "../../lib/themes.js";
 import { MONO_FONTS, TEXT_FONTS, fontById, loadFonts } from "../../lib/fonts.js";
+import { contrast, hexToTriplet, tintFrom, tripletToHex } from "../../lib/palettes.js";
 import { DEFAULT_SETTINGS } from "../../lib/storage.js";
 import { Area, Button, Choice, Section, Toggle } from "../ui.jsx";
 
@@ -27,6 +29,8 @@ const APPEARANCE_KEYS = [
   "lightTheme",
   "darkTheme",
   "accent",
+  "accentCustom",
+  "baseColor",
   "density",
   "width",
   "corners",
@@ -60,6 +64,16 @@ export default function Design({
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState(null);
+
+  // Whatever is on screen right now, so the two colour wells open on the
+  // current colour rather than on black.
+  const activePalette =
+    themes.find((t) => t.id === (settings.matchSystem ? settings.lightTheme : settings.theme)) ||
+    themes[0];
+  const palettePage = settings.baseColor
+    ? hexToTriplet(settings.baseColor)
+    : activePalette?.vars.page || "255 255 255";
+  const currentAccent = accentFor(settings) || activePalette?.vars.accent || "0 0 0";
 
   const chooseTheme = (theme) => {
     // With "match system" on, a palette claims the light or dark slot it
@@ -188,7 +202,7 @@ export default function Design({
 
         <div>
           <p className="mb-2 text-base font-medium">Accent</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {ACCENTS.map((accent) => {
               const active = accent.id === settings.accent;
               return (
@@ -207,10 +221,52 @@ export default function Design({
                 </button>
               );
             })}
+
+            <ColourWell
+              label="Accent: custom"
+              active={settings.accent === "custom"}
+              value={settings.accentCustom || tripletToHex(currentAccent)}
+              onChange={(hex) => onSettings({ accent: "custom", accentCustom: hex })}
+            />
           </div>
           <p className="mt-1.5 text-sm text-muted">
-            Overrides a built-in palette's accent. Your own packages keep theirs.
+            Overrides a built-in palette's accent. The last swatch is any colour you like.
           </p>
+        </div>
+
+        <div>
+          <p className="mb-1 text-base font-medium">Main colour</p>
+          <p className="mb-2.5 text-sm leading-relaxed text-muted">
+            Recolours the whole interface from one pick. Panels, borders, and text are worked out
+            from it, and going dark enough flips the app to a dark theme on its own.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <ColourWell
+              label="Main colour"
+              active={Boolean(settings.baseColor)}
+              value={settings.baseColor || tripletToHex(palettePage)}
+              onChange={(hex) => onSettings({ baseColor: hex })}
+            />
+
+            <HexField
+              value={settings.baseColor || tripletToHex(palettePage)}
+              onCommit={(hex) => onSettings({ baseColor: hex })}
+            />
+
+            {settings.baseColor && (
+              <Button variant="quiet" onClick={() => onSettings({ baseColor: "" })}>
+                Use the palette's
+              </Button>
+            )}
+          </div>
+
+          {settings.baseColor && (
+            <Readability
+              page={hexToTriplet(settings.baseColor)}
+              accent={currentAccent}
+            />
+          )}
         </div>
       </Section>
 
@@ -427,6 +483,96 @@ function FontPicker({ label, value, options, fallback, onChange }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// A swatch that opens the operating system's colour picker. The native input is
+// laid underneath at full size rather than hidden, so the picker opens where the
+// swatch is and the control stays keyboard-reachable.
+function ColourWell({ label, value, active, onChange }) {
+  return (
+    <span
+      className={`relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full ring-1 transition-transform ${
+        active ? "ring-2 ring-ink" : "ring-line hover:scale-110"
+      }`}
+      style={{ background: value }}
+    >
+      <input
+        type="color"
+        aria-label={label}
+        title={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+      {!active && (
+        <Plus className="pointer-events-none h-3 w-3 text-page mix-blend-difference" strokeWidth={3} />
+      )}
+    </span>
+  );
+}
+
+// Typing a hex is the fastest way in when you already have a brand colour, but
+// committing on every keystroke fights the person mid-type — so it only applies
+// once the value is complete.
+function HexField({ value, onCommit }) {
+  const [draft, setDraft] = useState(value);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setDraft(value);
+  }, [value, focused]);
+
+  const commit = (next) => {
+    const clean = next.trim().replace(/^#?/, "#");
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(clean)) onCommit(clean);
+    else setDraft(value);
+  };
+
+  return (
+    <input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        setFocused(false);
+        commit(e.target.value);
+      }}
+      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      spellCheck={false}
+      aria-label="Main colour, as hex"
+      className="w-[7.5rem] rounded-lg border border-line bg-surface px-2.5 py-1.5 font-mono text-sm uppercase outline-none transition-colors focus:border-soft"
+    />
+  );
+}
+
+// The two pairs that decide whether a chosen colour is actually usable. It warns
+// rather than blocks — it's your interface — but a colour that makes the app
+// unreadable shouldn't be able to do it quietly.
+function Readability({ page, accent }) {
+  const { vars } = tintFrom(tripletToHex(page));
+
+  const pairs = [
+    ["Body text", contrast(vars.ink, vars.page), 4.5],
+    ["Secondary text", contrast(vars.muted, vars.page), 4.5],
+    ["Accent", contrast(accent, vars.page), 3]
+  ];
+
+  return (
+    <div className="mt-3 space-y-1">
+      {pairs.map(([label, ratio, floor]) => {
+        const pass = ratio >= floor;
+        return (
+          <div key={label} className="flex items-center gap-2 text-sm">
+            <span className="w-28 shrink-0 text-muted">{label}</span>
+            <span className={`font-mono ${pass ? "text-muted" : "font-semibold text-accent"}`}>
+              {ratio.toFixed(1)}:1
+            </span>
+            {!pass && <span className="text-accent">below {floor}:1 — hard to read</span>}
+          </div>
+        );
+      })}
     </div>
   );
 }

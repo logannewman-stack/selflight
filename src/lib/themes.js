@@ -1,6 +1,8 @@
 // Every appearance option resolves to CSS variables or a data attribute, so
 // changing one is a single style write rather than a re-render.
 
+import { hexToTriplet, tintFrom } from "./palettes.js";
+
 const LIGHT_SHADOWS = {
   "shadow-sm": "0 1px 2px rgba(24, 22, 18, 0.05)",
   "shadow-md": "0 2px 8px rgba(24, 22, 18, 0.06), 0 1px 2px rgba(24, 22, 18, 0.04)",
@@ -284,6 +286,34 @@ function pick(list, id) {
   return list.find((item) => item.id === id) || list[0];
 }
 
+export function accentFor(settings = {}) {
+  if (settings.accent === "custom") {
+    return settings.accentCustom ? hexToTriplet(settings.accentCustom) : null;
+  }
+  return pick(ACCENTS, settings.accent).rgb;
+}
+
+// Rebuilds a palette around a chosen background colour. Surfaces and text are
+// derived; shadows and syntax colours come from the light or dark set, because
+// they're structural and a tinted app still needs code to be readable.
+function tinted(palette, baseColor) {
+  if (!baseColor) return palette;
+
+  const { dark, vars } = tintFrom(baseColor);
+  return {
+    ...palette,
+    dark,
+    vars: {
+      ...palette.vars,
+      ...vars,
+      ...(dark ? DARK_SHADOWS : LIGHT_SHADOWS),
+      // Only when the tint flips the palette's own mode — otherwise a palette's
+      // hand-tuned syntax colours survive being re-tinted.
+      ...(dark === palette.dark ? {} : dark ? DARK_SYNTAX : LIGHT_SYNTAX)
+    }
+  };
+}
+
 // When "match system" is on, the palette follows the OS instead of the manual
 // pick, using whichever light/dark pair was chosen last.
 export function resolveThemeId(settings, prefersDark) {
@@ -299,7 +329,11 @@ export function resolvePalette(settings, prefersDark, themes = BUILT_IN_THEMES) 
 // `override` lets the palette editor preview an unsaved draft without saving it
 // or touching the stored settings.
 export function applyTheme(settings, { prefersDark = false, themes, override } = {}) {
-  const palette = override || resolvePalette(settings, prefersDark, themes);
+  const chosen = override || resolvePalette(settings, prefersDark, themes);
+  // A base colour re-tints the whole app from one pick. It layers over whatever
+  // palette is selected rather than replacing it, so the parts it doesn't
+  // define — syntax colours, shadows — still come from somewhere considered.
+  const palette = override ? chosen : tinted(chosen, settings.baseColor);
   const root = document.documentElement;
 
   for (const [key, value] of Object.entries(palette.vars)) {
@@ -307,9 +341,12 @@ export function applyTheme(settings, { prefersDark = false, themes, override } =
   }
 
   // A custom palette owns its accent outright; the accent picker only overrides
-  // the built-ins, whose accent is a default rather than a decision.
-  const accent = pick(ACCENTS, settings.accent);
-  if (accent.rgb && !palette.custom) root.style.setProperty("--accent", accent.rgb);
+  // the built-ins, whose accent is a default rather than a decision. A colour
+  // picked by hand always wins — it can't be anything but deliberate.
+  const accent = accentFor(settings);
+  if (accent && (!palette.custom || settings.accent === "custom")) {
+    root.style.setProperty("--accent", accent);
+  }
 
   for (const group of [
     pick(DENSITIES, settings.density),
