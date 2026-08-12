@@ -140,10 +140,23 @@ async function checkAccounts() {
 
   if (report.state !== "ok") return report;
 
-  // Added later than the rest; a project set up before it silently drops the
-  // citations from every saved reply.
-  const { error: noSources } = await admin.from("messages").select("sources").limit(0);
-  report.schemaCurrent = !noSources;
+  // Columns the app gained after the first version of the schema. A database
+  // created from an earlier one fails every message read and write while its
+  // tables and policies all look correct — which is what "the history doesn't
+  // work" turns out to mean.
+  //
+  // All three, not just the first: a reply is written with every column at once,
+  // so any one of them missing fails the whole write. Checking `sources` alone
+  // let the other two go missing behind a green tick.
+  const missingColumns = [];
+  for (const column of ["sources", "thinking", "thought_ms"]) {
+    const { error } = await admin.from("messages").select(column).limit(0);
+    if (error) missingColumns.push(column);
+  }
+
+  report.missingColumns = missingColumns;
+  report.schemaCurrent = missingColumns.length === 0;
+  if (missingColumns.length) report.state = "broken";
 
   // What can someone holding only the public key read? It ships inside every
   // browser that loads the app, so this is the real-world question.
