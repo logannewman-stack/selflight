@@ -258,16 +258,22 @@ async function checkSupabase() {
   }
   ok(`All ${TABLES.length} tables exist`);
 
-  // The migration adds this; a project set up before it will silently lose the
-  // citations on every saved reply.
-  const { error: sourcesMissing } = await admin.from("messages").select("sources").limit(0);
-  if (sourcesMissing) {
+  // Columns the app gained after the first version of the schema. A database
+  // created from an earlier one fails every message read and write — which is
+  // exactly the "my history doesn't work" report.
+  const recent = [];
+  for (const column of ["sources", "thinking", "thought_ms"]) {
+    const { error } = await admin.from("messages").select(column).limit(0);
+    if (error) recent.push(column);
+  }
+
+  if (recent.length) {
     bad(
-      "messages.sources is missing — this project has an older migration",
-      "Re-run the current supabase/migrations/0001_init.sql, or: alter table public.messages add column sources jsonb not null default '[]'::jsonb;"
+      `public.messages is missing ${recent.join(", ")} — this database predates them`,
+      "Supabase → SQL Editor → run supabase/migrations/0002_repair.sql. Safe to run twice, and it leaves your chats alone."
     );
   } else {
-    ok("Schema is current", "messages.sources present");
+    ok("Schema is current", "every column the app reads is there");
   }
 
   section("Security");

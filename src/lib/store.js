@@ -12,6 +12,7 @@ import { supabase } from "./supabase.js";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./storage.js";
 import * as local from "./storage.js";
 import { isDarkPalette } from "./palettes.js";
+import { explain } from "./faults.js";
 import * as localPalettes from "./palettes.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,8 +29,22 @@ function debounce(fn, ms) {
   return wrapped;
 }
 
+// Somewhere to send failures other than the console.
+//
+// Every write here used to log and carry on, which meant a database that
+// couldn't accept a message looked exactly like one that had — chats vanishing
+// on refresh with nothing on screen to explain it. Storage failing is worth
+// interrupting for: the alternative is losing work quietly.
+let report = null;
+
+export function onStoreError(fn) {
+  report = fn;
+}
+
 function fail(context, error) {
-  if (error) console.error(`[store] ${context}: ${error.message || error}`);
+  if (!error) return null;
+  console.error(`[store] ${context}: ${error.message || error}`);
+  report?.(explain(context, error));
   return error;
 }
 

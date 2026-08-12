@@ -302,11 +302,19 @@ function Accounts({ accounts, cap }) {
         {cap ? `${cap.toLocaleString()} per person per month` : "none set"}
       </p>
       {accounts.schemaCurrent === false && (
-        <Problem>
-          This database was set up from an older version, so replies won't keep their sources. Re-run
-          the current{" "}
-          <code className="rounded bg-codebg px-1 py-0.5 font-mono text-2xs">0001_init.sql</code> to
-          fix it.
+        <Problem urgent>
+          <p className="font-semibold">This database is behind the app.</p>
+          <p className="mt-1.5">
+            public.messages is missing {(accounts.missingColumns || []).join(", ")}, so messages
+            can't be saved or loaded — chats appear in the sidebar but open empty.
+          </p>
+          <p className="mt-2">
+            Open Supabase → <b>SQL Editor</b> and run{" "}
+            <code className="rounded bg-codebg px-1 py-0.5 font-mono text-2xs">
+              supabase/migrations/0002_repair.sql
+            </code>
+            . It's safe to run twice and won't touch your existing chats.
+          </p>
         </Problem>
       )}
     </>

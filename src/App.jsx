@@ -15,7 +15,7 @@ import * as fontCatalogue from "./lib/fonts.js";
 import { draftFrom, importPalette, refreshSwatch } from "./lib/palettes.js";
 import { modeLabel } from "./lib/brand.js";
 import { fallbackTitle, lastChat, loadSettings, rememberChat } from "./lib/storage.js";
-import { storeFor } from "./lib/store.js";
+import { onStoreError, storeFor } from "./lib/store.js";
 import { hasSupabase, supabase } from "./lib/supabase.js";
 
 const SUGGESTIONS = [
@@ -60,6 +60,9 @@ export default function App() {
   // Set once the setup screen has been dismissed, so it can be looked at again
   // without being stuck behind it.
   const [setupDone, setSetupDone] = useState(false);
+  // A database that can't store what it's given. Held until dismissed, because
+  // the alternative is losing work with nothing on screen to explain it.
+  const [storeFault, setStoreFault] = useState(null);
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
@@ -101,6 +104,13 @@ export default function App() {
 
   useEffect(() => {
     capabilities().then((next) => next && setCan(next));
+  }, []);
+
+  // A fatal fault stays put; anything transient is replaced by whatever came
+  // last, so one bad moment doesn't pin an old message to the screen.
+  useEffect(() => {
+    onStoreError((fault) => setStoreFault((current) => (current?.fatal ? current : fault)));
+    return () => onStoreError(null);
   }, []);
 
   /* --------------------------------- auth -------------------------------- */
@@ -575,6 +585,32 @@ export default function App() {
       )}
 
       <main className="flex min-w-0 flex-1 flex-col">
+        {/* Across the top of the conversation, not tucked into the thread: if
+            the database can't keep what you write, that outranks the chat. */}
+        {storeFault && (
+          <div
+            role="alert"
+            className="flex shrink-0 items-start gap-2.5 border-b border-accent/40 bg-accent/8 px-4 py-2.5 text-base"
+          >
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" strokeWidth={2.2} />
+            <span className="min-w-0 flex-1">
+              <span className="font-medium">{storeFault.title}</span>
+              {storeFault.detail && (
+                <span className="mt-0.5 block text-sm leading-relaxed text-muted">
+                  {storeFault.detail}
+                </span>
+              )}
+            </span>
+            <button
+              onClick={() => setStoreFault(null)}
+              aria-label="Dismiss"
+              className="shrink-0 rounded-md px-2 py-0.5 text-sm font-medium text-muted transition-colors hover:text-ink"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-line px-3">
           <button
             onClick={() => setDrawerOpen(true)}

@@ -79,6 +79,21 @@ columns as strings, so a typo fails at runtime in someone's browser. The check
 reads the source, pulls out every table and column the code asks for, and
 compares them against the real database.
 
+## Already set up, and chats open empty?
+
+The app gained columns after the first version of the schema, so a database
+created earlier fails every message read and write. Chats keep their titles in
+the sidebar and lose their contents — which is what "the history doesn't work"
+usually means.
+
+Supabase → **SQL Editor** → run
+[`migrations/0002_repair.sql`](migrations/0002_repair.sql). It adds only what's
+missing, is safe to run twice, and leaves your existing chats alone. It prints
+`Selflight schema is up to date.` when it's done.
+
+`npm run doctor` names the missing columns, and so does the app's own setup
+screen.
+
 ## Where the tokens live
 
 An MCP connector's auth token is the one genuinely dangerous thing here. It sits
