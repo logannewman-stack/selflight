@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Check, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { Mark } from "./Logo.jsx";
 
 // Shown instead of the app when Selflight can't work yet, and reachable from
 // Settings once it can. Everything here is a thing you fix in a browser tab —
@@ -51,6 +52,7 @@ export default function Setup({ onDone }) {
 
   return (
     <Frame wide>
+      <Mark size={30} className="mb-4 text-accent" />
       <h1 className="font-serif text-3xl font-normal tracking-[-0.02em]">Let's finish setting up</h1>
       <p className="mt-1.5 text-md leading-relaxed text-muted">
         Selflight needs one thing to work, and a second if you want people to sign in. This page

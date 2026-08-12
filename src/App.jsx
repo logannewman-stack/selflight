@@ -6,6 +6,7 @@ import Composer from "./components/Composer.jsx";
 import RightPanel from "./components/RightPanel.jsx";
 import SignIn from "./components/SignIn.jsx";
 import Setup from "./components/Setup.jsx";
+import Logo from "./components/Logo.jsx";
 import Build from "./components/panels/Build.jsx";
 import { capabilities, generateTitle, streamChat } from "./lib/api.js";
 import { extractArtifacts } from "./lib/artifacts.js";
@@ -581,7 +582,7 @@ export default function App() {
               <div className="thread-col px-4" style={{ paddingBlock: "var(--pad-y)" }}>
                 {messages.length === 0 ? (
                   <div className="pt-[11vh]">
-                    <h1 className="font-serif text-3xl font-normal tracking-[-0.02em]">Selflight</h1>
+                    <Logo size={32} />
                     <p className="mt-1.5 text-md text-muted">
                       {settings.callMe ? `What are you working on, ${settings.callMe}?` : "What are you working on?"}
                     </p>

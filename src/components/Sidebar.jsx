@@ -11,6 +11,7 @@ import {
   SlidersHorizontal,
   Trash2
 } from "lucide-react";
+import Logo from "./Logo.jsx";
 
 const DAY = 86400000;
 
@@ -63,7 +64,7 @@ export default function Sidebar({
   return (
     <div className="flex h-full w-[252px] shrink-0 flex-col bg-panel">
       <div className="flex items-center justify-between px-4 pt-4">
-        <span className="font-serif text-xl font-medium tracking-[-0.01em]">Selflight</span>
+        <Logo size={21} />
         <div className="flex items-center gap-0.5">
           <IconButton
             label={searching ? "Close search" : "Search chats"}

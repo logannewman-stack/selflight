@@ -1,5 +1,17 @@
-import React, { useEffect, useRef } from "react";
-import { ArrowUp, Globe, Link2, Square } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { ArrowUp, Globe, Link2, Mic, Square } from "lucide-react";
+import { dictate, supported as canDictate } from "../lib/dictation.js";
+
+// Speech arrives without leading spaces, so appending it to typed text needs
+// one adding — but not after an open bracket or a newline, and not before
+// punctuation the engine occasionally emits on its own.
+function join(base, addition) {
+  const spoken = addition.trim();
+  if (!spoken) return base;
+  if (!base) return spoken.charAt(0).toUpperCase() + spoken.slice(1);
+  if (/[\s([{"'‘“]$/.test(base) || /^[,.!?;:]/.test(spoken)) return base + spoken;
+  return `${base} ${spoken}`;
+}
 
 export default function Composer({
   value,
@@ -12,6 +24,64 @@ export default function Composer({
   focusSignal
 }) {
   const ref = useRef(null);
+
+  const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState("");
+  const [micError, setMicError] = useState(null);
+  const sessionRef = useRef(null);
+  // What was already typed when dictation started, so speech is appended to it
+  // rather than replacing a half-written message.
+  const baseRef = useRef("");
+
+  const stopDictation = () => {
+    sessionRef.current?.stop();
+    sessionRef.current = null;
+    setListening(false);
+    setHeard("");
+  };
+
+  const startDictation = () => {
+    setMicError(null);
+    baseRef.current = value;
+
+    const session = dictate({
+      onText: ({ text, final }) => {
+        if (final) {
+          // Committed words join the message; the live guess resets so it isn't
+          // counted twice.
+          baseRef.current = join(baseRef.current, text);
+          setHeard("");
+          onChange(baseRef.current);
+        } else {
+          setHeard(text);
+          onChange(join(baseRef.current, text));
+        }
+      },
+      onError: (message) => {
+        setMicError(message);
+        stopDictation();
+      },
+      onEnd: () => {
+        sessionRef.current = null;
+        setListening(false);
+        setHeard("");
+      }
+    });
+
+    if (!session) return;
+    sessionRef.current = session;
+    setListening(true);
+  };
+
+  // A dictation left running after the composer goes away would keep the
+  // microphone open with nothing to show for it.
+  useEffect(() => () => sessionRef.current?.stop(), []);
+
+  // Sending finishes the thought; the mic shouldn't stay on for the next one.
+  const send = () => {
+    if (listening) stopDictation();
+    onSend();
+  };
 
   // Grow with the text, then scroll instead of pushing the thread off screen.
   useEffect(() => {
@@ -35,14 +105,14 @@ export default function Composer({
     if (settings.sendKey === "mod") {
       if (mod) {
         e.preventDefault();
-        onSend();
+        send();
       }
       return;
     }
 
     if (!mod && !e.shiftKey) {
       e.preventDefault();
-      onSend();
+      send();
     }
   };
 
@@ -63,6 +133,24 @@ export default function Composer({
             style={{ fontSize: "var(--msg-size)" }}
           />
 
+          {/* Hidden entirely where the browser can't do it, rather than shown
+              and then apologising. */}
+          {canDictate && !streaming && (
+            <button
+              onClick={listening ? stopDictation : startDictation}
+              aria-label={listening ? "Stop dictating" : "Dictate a message"}
+              aria-pressed={listening}
+              title={listening ? "Stop dictating" : "Dictate a message"}
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                listening
+                  ? "bg-accent text-page"
+                  : "text-muted hover:bg-panel hover:text-ink"
+              }`}
+            >
+              <Mic className={`h-4 w-4 ${listening ? "animate-pulse" : ""}`} strokeWidth={2} />
+            </button>
+          )}
+
           {streaming ? (
             <button
               onClick={onStop}
@@ -73,7 +161,7 @@ export default function Composer({
             </button>
           ) : (
             <button
-              onClick={onSend}
+              onClick={send}
               disabled={!value.trim()}
               aria-label="Send message"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bubble transition-transform active:scale-90 disabled:opacity-25"
@@ -83,20 +171,37 @@ export default function Composer({
           )}
         </div>
 
+        {micError && (
+          <p role="alert" className="mt-2 text-center text-sm text-accent">
+            {micError}
+          </p>
+        )}
+
         <div className="mt-2 flex items-center justify-center gap-3 text-xs text-soft">
-          {settings.webSearch && (
-            <span className="flex items-center gap-1">
-              <Globe className="h-3 w-3" strokeWidth={2} />
-              Web on
+          {/* While dictating, this line is the only feedback that the words are
+              landing — so it replaces the usual footer rather than crowding it. */}
+          {listening ? (
+            <span className="flex items-center gap-1.5 text-accent">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+              {heard ? "Listening…" : "Listening — start speaking"}
             </span>
+          ) : (
+            <>
+              {settings.webSearch && (
+                <span className="flex items-center gap-1">
+                  <Globe className="h-3 w-3" strokeWidth={2} />
+                  Web on
+                </span>
+              )}
+              {connectorCount > 0 && (
+                <span className="flex items-center gap-1">
+                  <Link2 className="h-3 w-3" strokeWidth={2} />
+                  {connectorCount} connector{connectorCount === 1 ? "" : "s"}
+                </span>
+              )}
+              <span>Selflight can be wrong. Check anything that matters.</span>
+            </>
           )}
-          {connectorCount > 0 && (
-            <span className="flex items-center gap-1">
-              <Link2 className="h-3 w-3" strokeWidth={2} />
-              {connectorCount} connector{connectorCount === 1 ? "" : "s"}
-            </span>
-          )}
-          <span>Selflight can be wrong. Check anything that matters.</span>
         </div>
       </div>
     </div>

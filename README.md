@@ -79,6 +79,11 @@ variable added after a build isn't in it.
 **Chat** with streaming replies, markdown, auto-generated titles, and history that
 survives a refresh.
 
+**Dictation.** The microphone in the composer turns speech into text as you talk, using
+the browser's own recognition — no API key and nothing per-minute. Words appear live and
+land in the message box to edit before sending, rather than being fired off. Chrome, Edge
+and Safari have it; Firefox doesn't, so the button is hidden there instead of failing.
+
 **Web search** is on by default, and on Perplexity it's how answers get written at
 all — the sources each reply used are listed underneath it, collapsed past four.
 Turning it off asks the model to answer from training data alone, which is faster
@@ -209,7 +214,7 @@ request pieces — system prompt, effort, tools, MCP servers — and `npm test` 
 directly. No network, no API key, no dependencies:
 
 ```bash
-npm test        # 23 tests
+npm test        # 58 tests
 ```
 
 It checks that tone changes the prompt, that standing instructions are passed through
@@ -272,6 +277,8 @@ app's queries name actually exists. 32 assertions and a schema cross-check; deta
 | `src/lib/themes.js` | Palettes, applied as CSS variables. |
 | `src/lib/artifacts.js` | Pulls code blocks out of replies. |
 | `src/components/panels/` | Settings (Assistant / Appearance / Connectors tabs), Artifacts, Build, and the palette editor. |
+| `src/lib/dictation.js` | Speech to text, through the browser. Tested by `dictation.test.mjs`. |
+| `src/components/Logo.jsx` | The mark and the lockup. |
 | `verify/appearance.mjs` | Measures every appearance control against real computed styles and pixels. |
 | `scripts/doctor.mjs` | `npm run doctor` — checks the key, the schema, what the public key can read, and a deployment. |
 

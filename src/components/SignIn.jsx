@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ArrowRight, Check, Loader2, Mail } from "lucide-react";
+import Logo from "./Logo.jsx";
 import { friendlyAuthError, supabase } from "../lib/supabase.js";
 
 // Password and magic link, both. A password gives an answer immediately, which
@@ -81,7 +82,7 @@ export default function SignIn() {
 
   return (
     <Frame>
-      <h1 className="font-serif text-3xl font-normal tracking-[-0.02em]">Selflight</h1>
+      <Logo size={30} />
       <p className="mt-1.5 text-md text-muted">{copy.title}</p>
 
       <form onSubmit={submit} className="mt-7 space-y-2.5">
