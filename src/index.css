@@ -3,10 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-geist: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-system: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, sans-serif;
   --font-serif: "Source Serif 4", ui-serif, Georgia, Cambria, serif;
-  --font-reading: var(--font-sans);
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Both selectable in Design; default to Geist for chrome and replies alike. */
+  --font-sans: var(--font-geist);
+  --font-reading: var(--font-geist);
+
+  /* Layout knobs, all driven from the Design panel. */
+  --r-lg: 10px;
+  --r-xl: 13px;
+  --r-2xl: 17px;
+  --r-3xl: 22px;
+  --gap-msg: 1.6rem;
+  --row-y: 7px;
+  --pad-y: 1.5rem;
+  --thread-max: 760px;
+  --leading-msg: 1.68;
+  --code-size: 0.86em;
 
   /* Overwritten immediately by applyTheme(); these keep the first paint sane. */
   --page: 252 251 249;
@@ -101,10 +117,27 @@
     background: transparent;
   }
 
-  /* Long-form replies read better with a measure, not the full pane width. */
-  .measure {
-    max-width: 74ch;
+  /* Conversation column, sized from the Design panel. */
+  .thread-col {
+    width: 100%;
+    max-width: var(--thread-max);
+    margin-inline: auto;
   }
+
+  .stack-msg > * + * {
+    margin-top: var(--gap-msg);
+  }
+
+  .row-y {
+    padding-block: var(--row-y);
+  }
+}
+
+/* Wrapping and line numbers are mutually exclusive — numbers in a fixed gutter
+   can't stay aligned once a line reflows, so the gutter hides when wrap is on. */
+html[data-code-wrap="on"] pre code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .caret {

@@ -72,11 +72,34 @@ export function fallbackTitle(text) {
 /* ------------------------------ settings ------------------------------ */
 
 export const DEFAULT_SETTINGS = {
-  // Appearance
+  // Colour
   theme: "paper",
+  matchSystem: false,
+  lightTheme: "paper",
+  darkTheme: "midnight",
+  accent: "palette",
+
+  // Layout
+  density: "comfortable",
+  width: "medium",
+  corners: "soft",
+  bubbles: "bubble",
+
+  // Reading
+  uiFace: "geist",
+  readingFace: "geist",
   textSize: "md",
-  readingFace: "sans",
+  lineSpacing: "normal",
   reduceMotion: false,
+
+  // Code
+  codeSize: "md",
+  codeWrap: false,
+  lineNumbers: false,
+
+  // Behaviour
+  sendKey: "enter",
+  autoArtifacts: false,
 
   // Personality — folded into the system prompt on the server.
   tone: "balanced",

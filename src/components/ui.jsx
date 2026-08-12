@@ -38,6 +38,8 @@ export function Toggle({ checked, onChange, label, hint }) {
 }
 
 export function Choice({ label, options, value, onChange }) {
+  const activeHint = options.find((o) => o.id === value)?.hint;
+
   return (
     <div>
       {label && <p className="mb-2 text-base font-medium">{label}</p>}
@@ -61,6 +63,7 @@ export function Choice({ label, options, value, onChange }) {
           );
         })}
       </div>
+      {activeHint && <p className="mt-1.5 text-sm text-muted">{activeHint}</p>}
     </div>
   );
 }

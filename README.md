@@ -52,8 +52,18 @@ The output is one self-contained HTML file.
 **Customize** sets tone, answer length, thinking depth, what to call you, and standing
 instructions — all folded into the system prompt on the server.
 
-**Design** switches palettes (including two dark ones, a low-stimulation option, and a
-high-contrast option), the reading typeface, text size, and reduced motion.
+**Design** is where the interface is yours to shape:
+
+| Group | Options |
+| --- | --- |
+| Colour | Six palettes, match-system light/dark pairing, nine accent colours |
+| Layout | Density, conversation width, corner rounding, bubble or plain user messages |
+| Type | Separate typefaces for interface and replies, text size, line spacing, reduced motion |
+| Code | Code size, wrap long lines, line numbers |
+| Behaviour | Send with Enter or ⌘+Enter, open artifacts automatically |
+
+Everything is one click, applies instantly, persists, and has a reset that leaves your
+chats and instructions alone.
 
 ## Design system
 
@@ -77,6 +87,12 @@ lines, and copy in one click.
 **Motion and focus.** Transitions are short and eased-out. Keyboard users get a visible
 focus ring on every control; pointer users don't. Reduced motion is both a setting and an
 honoured OS preference.
+
+**One gotcha while developing.** Tailwind output is cached by the dev server, so editing
+`tailwind.config.js` — adding a token, renaming a variable — can leave `npm run dev`
+serving the previous CSS while the production build is already correct. If a style change
+appears to do nothing, `rm -rf node_modules/.vite` and restart before assuming the code is
+wrong.
 
 ## Connectors: read this before adding one
 

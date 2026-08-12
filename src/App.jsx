@@ -53,19 +53,39 @@ export default function App() {
   // to re-read something mid-reply doesn't yank them back down.
   const [pinned, setPinned] = useState(true);
   const [focusSignal, setFocusSignal] = useState(0);
+  const [prefersDark, setPrefersDark] = useState(
+    () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false
+  );
 
   const threadRef = useRef(null);
   const abortRef = useRef(null);
   // The turn in flight writes to whichever chat it started in, so switching
   // chats mid-stream can't drop a reply into the wrong conversation.
   const chatIdRef = useRef(null);
+  const artifactCountRef = useRef(0);
 
   const artifacts = useMemo(() => extractArtifacts(messages), [messages]);
 
   useEffect(() => {
-    applyTheme(settings);
+    applyTheme(settings, prefersDark);
     saveSettings(settings);
-  }, [settings]);
+  }, [settings, prefersDark]);
+
+  // "Match system" needs the OS preference live, not only at first paint.
+  useEffect(() => {
+    const query = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!query) return;
+    const onChange = (e) => setPrefersDark(e.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (settings.autoArtifacts && artifacts.length > artifactCountRef.current) {
+      setSection("artifacts");
+    }
+    artifactCountRef.current = artifacts.length;
+  }, [artifacts.length, settings.autoArtifacts]);
 
   useEffect(() => {
     if (!pinned) return;
@@ -351,7 +371,7 @@ export default function App() {
               onScroll={onThreadScroll}
               className="thin-scrollbar relative flex-1 overflow-y-auto"
             >
-              <div className="mx-auto w-full max-w-[760px] px-4 py-6">
+              <div className="thread-col px-4" style={{ paddingBlock: "var(--pad-y)" }}>
                 {messages.length === 0 ? (
                   <div className="pt-[11vh]">
                     <h1 className="font-serif text-3xl font-normal tracking-[-0.02em]">Selflight</h1>
@@ -372,7 +392,7 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="stack-msg">
                     {messages.map((m, i) => {
                       const last = i === messages.length - 1;
                       return (
@@ -383,6 +403,7 @@ export default function App() {
                           onRegenerate={
                             last && m.role === "selflight" && !streaming ? retry : undefined
                           }
+                          options={settings}
                         />
                       );
                     })}

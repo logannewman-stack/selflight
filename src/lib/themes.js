@@ -1,6 +1,5 @@
-// Palettes are plain CSS variable values so Tailwind can drive them — switching
-// a theme is one style write rather than a re-render. Colour tokens are RGB
-// triplets (so Tailwind's `/ <alpha-value>` works); shadows are whole strings.
+// Every appearance option resolves to CSS variables or a data attribute, so
+// changing one is a single style write rather than a re-render.
 
 const LIGHT_SHADOWS = {
   "shadow-sm": "0 1px 2px rgba(24, 22, 18, 0.05)",
@@ -51,7 +50,6 @@ export const THEMES = [
       muted: "122 116 106",
       soft: "168 161 150",
       accent: "185 88 48",
-      accentSoft: "185 88 48",
       bubble: "28 27 25",
       bubbleInk: "252 251 249",
       code: "245 242 236",
@@ -75,7 +73,6 @@ export const THEMES = [
       muted: "108 116 130",
       soft: "158 166 179",
       accent: "44 104 180",
-      accentSoft: "44 104 180",
       bubble: "21 23 28",
       bubbleInk: "248 249 251",
       code: "240 243 248",
@@ -99,7 +96,6 @@ export const THEMES = [
       muted: "112 121 114",
       soft: "160 168 159",
       accent: "90 120 97",
-      accentSoft: "90 120 97",
       bubble: "43 48 44",
       bubbleInk: "244 246 243",
       code: "233 236 231",
@@ -129,7 +125,6 @@ export const THEMES = [
       muted: "156 153 148",
       soft: "114 112 108",
       accent: "222 138 99",
-      accentSoft: "222 138 99",
       bubble: "237 236 233",
       bubbleInk: "27 27 31",
       code: "23 23 27",
@@ -153,7 +148,6 @@ export const THEMES = [
       muted: "146 146 143",
       soft: "102 102 101",
       accent: "132 170 204",
-      accentSoft: "132 170 204",
       bubble: "233 233 231",
       bubbleInk: "10 10 11",
       code: "16 16 18",
@@ -177,7 +171,6 @@ export const THEMES = [
       muted: "56 56 56",
       soft: "84 84 84",
       accent: "11 68 196",
-      accentSoft: "11 68 196",
       bubble: "0 0 0",
       bubbleInk: "255 255 255",
       code: "241 241 241",
@@ -194,31 +187,116 @@ export const THEMES = [
   }
 ];
 
+// Overrides the palette's own accent when set to anything but "palette".
+export const ACCENTS = [
+  { id: "palette", name: "Palette", rgb: null },
+  { id: "rust", name: "Rust", rgb: "185 88 48" },
+  { id: "amber", name: "Amber", rgb: "173 114 26" },
+  { id: "olive", name: "Olive", rgb: "104 124 62" },
+  { id: "teal", name: "Teal", rgb: "22 122 122" },
+  { id: "blue", name: "Blue", rgb: "44 104 180" },
+  { id: "indigo", name: "Indigo", rgb: "94 94 200" },
+  { id: "violet", name: "Violet", rgb: "138 82 180" },
+  { id: "rose", name: "Rose", rgb: "190 70 110" }
+];
+
 export const TEXT_SIZES = [
-  { id: "sm", name: "Small", msg: "14px" },
-  { id: "md", name: "Medium", msg: "15.5px" },
-  { id: "lg", name: "Large", msg: "17px" },
-  { id: "xl", name: "Extra large", msg: "19px" }
+  { id: "sm", name: "Small", value: "14px" },
+  { id: "md", name: "Medium", value: "15.5px" },
+  { id: "lg", name: "Large", value: "17px" },
+  { id: "xl", name: "Extra large", value: "19px" }
 ];
 
-export const READING_FACES = [
-  { id: "sans", name: "Sans", stack: "var(--font-sans)" },
-  { id: "serif", name: "Serif", stack: "var(--font-serif)" }
+export const LINE_SPACINGS = [
+  { id: "tight", name: "Tight", value: "1.5" },
+  { id: "normal", name: "Normal", value: "1.68" },
+  { id: "relaxed", name: "Relaxed", value: "1.9" }
 ];
 
-export function applyTheme({ theme, textSize, readingFace, reduceMotion }) {
-  const palette = THEMES.find((t) => t.id === theme) || THEMES[0];
-  const size = TEXT_SIZES.find((s) => s.id === textSize) || TEXT_SIZES[1];
-  const face = READING_FACES.find((f) => f.id === readingFace) || READING_FACES[0];
+export const CODE_SIZES = [
+  { id: "sm", name: "Small", value: "0.78em" },
+  { id: "md", name: "Medium", value: "0.86em" },
+  { id: "lg", name: "Large", value: "0.96em" }
+];
+
+export const FACES = [
+  { id: "geist", name: "Geist", stack: "var(--font-geist)" },
+  { id: "serif", name: "Serif", stack: "var(--font-serif)" },
+  { id: "system", name: "System", stack: "var(--font-system)" }
+];
+
+export const DENSITIES = [
+  { id: "compact", name: "Compact", vars: { "gap-msg": "1.1rem", "row-y": "5px", "pad-y": "1.1rem" } },
+  {
+    id: "comfortable",
+    name: "Comfortable",
+    vars: { "gap-msg": "1.6rem", "row-y": "7px", "pad-y": "1.5rem" }
+  },
+  { id: "spacious", name: "Spacious", vars: { "gap-msg": "2.4rem", "row-y": "9px", "pad-y": "2.25rem" } }
+];
+
+export const WIDTHS = [
+  { id: "narrow", name: "Narrow", value: "640px" },
+  { id: "medium", name: "Medium", value: "760px" },
+  { id: "wide", name: "Wide", value: "920px" },
+  { id: "full", name: "Full", value: "100%" }
+];
+
+export const CORNERS = [
+  { id: "square", name: "Square", vars: { "r-lg": "4px", "r-xl": "6px", "r-2xl": "9px", "r-3xl": "12px" } },
+  { id: "soft", name: "Soft", vars: { "r-lg": "10px", "r-xl": "13px", "r-2xl": "17px", "r-3xl": "22px" } },
+  { id: "round", name: "Round", vars: { "r-lg": "14px", "r-xl": "18px", "r-2xl": "24px", "r-3xl": "30px" } }
+];
+
+export const BUBBLE_STYLES = [
+  { id: "bubble", name: "Bubble" },
+  { id: "plain", name: "Plain" }
+];
+
+export const SEND_KEYS = [
+  { id: "enter", name: "Enter", hint: "Shift+Enter for a new line" },
+  { id: "mod", name: "⌘+Enter", hint: "Enter makes a new line" }
+];
+
+function pick(list, id) {
+  return list.find((item) => item.id === id) || list[0];
+}
+
+// When "match system" is on, the palette follows the OS instead of the manual
+// pick, using whichever light/dark pair was chosen last.
+export function resolveThemeId(settings, prefersDark) {
+  if (!settings.matchSystem) return settings.theme;
+  return prefersDark ? settings.darkTheme : settings.lightTheme;
+}
+
+export function applyTheme(settings, prefersDark = false) {
+  const palette = THEMES.find((t) => t.id === resolveThemeId(settings, prefersDark)) || THEMES[0];
   const root = document.documentElement;
 
   for (const [key, value] of Object.entries(palette.vars)) {
     root.style.setProperty(`--${key}`, value);
   }
-  root.style.setProperty("--msg-size", size.msg);
-  root.style.setProperty("--font-reading", face.stack);
+
+  const accent = pick(ACCENTS, settings.accent);
+  if (accent.rgb) root.style.setProperty("--accent", accent.rgb);
+
+  for (const [key, value] of Object.entries(pick(DENSITIES, settings.density).vars)) {
+    root.style.setProperty(`--${key}`, value);
+  }
+  for (const [key, value] of Object.entries(pick(CORNERS, settings.corners).vars)) {
+    root.style.setProperty(`--${key}`, value);
+  }
+
+  root.style.setProperty("--msg-size", pick(TEXT_SIZES, settings.textSize).value);
+  root.style.setProperty("--leading-msg", pick(LINE_SPACINGS, settings.lineSpacing).value);
+  root.style.setProperty("--code-size", pick(CODE_SIZES, settings.codeSize).value);
+  root.style.setProperty("--thread-max", pick(WIDTHS, settings.width).value);
+  root.style.setProperty("--font-sans", pick(FACES, settings.uiFace).stack);
+  root.style.setProperty("--font-reading", pick(FACES, settings.readingFace).stack);
+
   root.dataset.mode = palette.dark ? "dark" : "light";
-  root.dataset.motion = reduceMotion ? "reduced" : "full";
+  root.dataset.motion = settings.reduceMotion ? "reduced" : "full";
+  root.dataset.codeWrap = settings.codeWrap ? "on" : "off";
   // Native controls (scrollbars, form widgets) follow the palette too.
   root.style.colorScheme = palette.dark ? "dark" : "light";
 

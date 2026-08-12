@@ -148,7 +148,7 @@ export default function Sidebar({
                 >
                   <button
                     onClick={() => onOpen(chat)}
-                    className="flex min-w-0 flex-1 items-center gap-2 py-[7px] pl-2.5 text-left"
+                    className="row-y flex min-w-0 flex-1 items-center gap-2 pl-2.5 text-left"
                   >
                     <span
                       className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-accent" : "bg-transparent"}`}

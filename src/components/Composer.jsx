@@ -29,7 +29,18 @@ export default function Composer({
   }, [focusSignal]);
 
   const keyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key !== "Enter") return;
+    const mod = e.metaKey || e.ctrlKey;
+
+    if (settings.sendKey === "mod") {
+      if (mod) {
+        e.preventDefault();
+        onSend();
+      }
+      return;
+    }
+
+    if (!mod && !e.shiftKey) {
       e.preventDefault();
       onSend();
     }
@@ -37,7 +48,7 @@ export default function Composer({
 
   return (
     <div className="px-4 pb-4 pt-2">
-      <div className="mx-auto w-full max-w-[760px]">
+      <div className="thread-col">
         <div className="flex items-end gap-2 rounded-2xl border border-line bg-surface px-3.5 py-2.5 shadow-[0_1px_3px_rgb(0_0_0/0.04)] focus-within:border-soft">
           <textarea
             ref={ref}
@@ -45,7 +56,9 @@ export default function Composer({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={keyDown}
-            placeholder="Message Selflight…"
+            placeholder={
+              settings.sendKey === "mod" ? "Message Selflight… (⌘↵ to send)" : "Message Selflight…"
+            }
             className="no-scrollbar max-h-[200px] flex-1 resize-none bg-transparent py-1 leading-relaxed outline-none placeholder:text-soft"
             style={{ fontSize: "var(--msg-size)" }}
           />

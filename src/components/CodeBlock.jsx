@@ -5,7 +5,7 @@ import { highlight, labelFor } from "../lib/highlight.js";
 // Long blocks collapse so one big file doesn't bury the rest of the reply.
 const COLLAPSE_AFTER = 22;
 
-export default function CodeBlock({ code, language }) {
+export default function CodeBlock({ code, language, lineNumbers, wrap }) {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -13,6 +13,9 @@ export default function CodeBlock({ code, language }) {
   const lines = useMemo(() => code.split("\n").length, [code]);
 
   const collapsible = lines > COLLAPSE_AFTER && !expanded;
+  // Numbers live in a fixed gutter, so they can't stay aligned once a line
+  // reflows. Wrapping wins and the gutter steps aside.
+  const gutter = lineNumbers && !wrap;
   const label = labelFor(language);
 
   const copy = async () => {
@@ -26,7 +29,7 @@ export default function CodeBlock({ code, language }) {
   };
 
   return (
-    <div className="group/code mb-3 overflow-hidden rounded-xl border border-line bg-codebg last:mb-0">
+    <div className="mb-3 overflow-hidden rounded-xl border border-line bg-codebg last:mb-0">
       <div className="flex items-center gap-2 border-b border-line/70 px-3 py-1.5">
         <span className="text-2xs font-semibold uppercase text-soft">{label || "Code"}</span>
         <span className="flex-1" />
@@ -48,17 +51,26 @@ export default function CodeBlock({ code, language }) {
       </div>
 
       <div className="relative">
-        <pre
-          className={`thin-scrollbar overflow-x-auto px-3.5 py-3 font-mono text-[0.82em] leading-[1.65] ${
-            collapsible ? "max-h-[22rem] overflow-y-hidden" : ""
-          }`}
-        >
-          {html ? (
-            <code dangerouslySetInnerHTML={{ __html: html }} />
-          ) : (
-            <code>{code}</code>
+        <div className={`flex ${collapsible ? "max-h-[22rem] overflow-hidden" : ""}`}>
+          {gutter && (
+            <div
+              aria-hidden="true"
+              className="shrink-0 select-none border-r border-line/60 py-3 pl-3 pr-2 text-right font-mono leading-[1.65] text-soft/60"
+              style={{ fontSize: "var(--code-size)" }}
+            >
+              {Array.from({ length: lines }, (_, i) => (
+                <div key={i}>{i + 1}</div>
+              ))}
+            </div>
           )}
-        </pre>
+
+          <pre
+            className="thin-scrollbar min-w-0 flex-1 overflow-x-auto px-3.5 py-3 font-mono leading-[1.65]"
+            style={{ fontSize: "var(--code-size)" }}
+          >
+            {html ? <code dangerouslySetInnerHTML={{ __html: html }} /> : <code>{code}</code>}
+          </pre>
+        </div>
 
         {collapsible && (
           <button

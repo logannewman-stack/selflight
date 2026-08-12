@@ -44,11 +44,13 @@ export default {
         "3xl": ["33px", { lineHeight: "1.1", letterSpacing: "-0.028em" }]
       },
 
+      // Driven by the Corners setting rather than fixed, so one control
+      // reshapes every surface at once.
       borderRadius: {
-        lg: "10px",
-        xl: "13px",
-        "2xl": "17px",
-        "3xl": "22px"
+        lg: "var(--r-lg)",
+        xl: "var(--r-xl)",
+        "2xl": "var(--r-2xl)",
+        "3xl": "var(--r-3xl)"
       },
 
       boxShadow: {
