@@ -102,19 +102,22 @@ export default function Setup({ onDone }) {
               <ol className="mt-3 space-y-2">
                 <Instruction n="a">
                   Go to{" "}
-                  <Link href="https://www.perplexity.ai/settings/api">
-                    perplexity.ai/settings/api
+                  <Link href="https://console.perplexity.ai">
+                    console.perplexity.ai
                   </Link>{" "}
                   and sign in.
                 </Instruction>
                 <Instruction n="b">
-                  Under <b>API Keys</b>, add a payment method and put <b>$20</b> of credit on the
-                  account. Turn <b>off</b> auto top-up — then $20 is the most it can ever spend.
+                  Open the <b>Billing</b> tab, add a card, and <b>Buy Credits</b> — $20 is plenty.
+                  Leave <b>Automatic Top Up</b> switched <b>off</b>: then $20 is the absolute most
+                  this can ever cost you. When it runs out the key stops working, which is the
+                  failure you want.
                 </Instruction>
                 <Instruction n="c">
-                  Click <b>Generate</b>. Copy the key that appears. It starts with{" "}
+                  Open the <b>API Keys</b> tab → <b>Generate API Key</b>. Copy what appears. It
+                  starts with{" "}
                   <code className="rounded bg-codebg px-1 py-0.5 font-mono text-2xs">pplx-</code> and
-                  it's only shown once.
+                  it is shown once and never again.
                 </Instruction>
                 <Instruction n="d">
                   Put it where this app is hosted, as a setting named{" "}

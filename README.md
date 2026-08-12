@@ -25,7 +25,7 @@ npm run doctor                 # confirms the key actually works
 Open http://localhost:5173. `npm run dev` serves the front end *and* the `/api`
 functions, so there's nothing else to start.
 
-Get a key at https://www.perplexity.ai/settings/api. Without one the app loads and
+Get a key at https://console.perplexity.ai. Without one the app loads and
 says the key is missing instead of failing silently.
 
 That's the whole setup. Everything is stored in your browser and there's no sign-in.
@@ -56,7 +56,7 @@ ten-minute version.
 
 The one thing worth knowing up front: once a project is configured, **signing in
 is required**. Without that, the first person to find your URL spends your
-Anthropic credits.
+Perplexity credit.
 
 ## Deploy
 

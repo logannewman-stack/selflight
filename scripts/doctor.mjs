@@ -100,7 +100,7 @@ async function checkPerplexity() {
     }
     bad(
       "No PERPLEXITY_API_KEY",
-      "Get one at https://www.perplexity.ai/settings/api, then put it in .env.local as PERPLEXITY_API_KEY=pplx-..."
+      "Get one at https://console.perplexity.ai, then put it in .env.local as PERPLEXITY_API_KEY=pplx-..."
     );
     return;
   }
@@ -137,7 +137,7 @@ async function checkPerplexity() {
         if (res.status === 401 || res.status === 403) {
           bad(`${model} — key rejected`, "Check the key was copied whole, with no trailing space.");
         } else if (res.status === 402) {
-          bad(`${model} — out of credit`, "Add credit at https://www.perplexity.ai/settings/api");
+          bad(`${model} — out of credit`, "Add credit at https://console.perplexity.ai");
         } else if (res.status === 400 && /model/i.test(message)) {
           bad(
             `${model} — Perplexity doesn't recognise this model`,

@@ -26,9 +26,10 @@ front end and the server are both alive.
 
 ## 2 · Add the Perplexity key
 
-Get one at [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api).
-You'll need to put credit on the account — **start with $20**, enough for weeks of
-building without being a number you'd mind losing.
+Get one at [console.perplexity.ai](https://console.perplexity.ai) — **Billing** tab
+to add a card and buy credit, **API Keys** tab to generate the key. Start with
+**$20** and leave **Automatic Top Up** off: then $20 is a ceiling rather than a
+starting balance.
 
 ```bash
 cp .env.example .env.local
