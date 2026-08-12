@@ -41,9 +41,25 @@ export default function Composer({
   // audio is the fallback that makes this work in Firefox at all.
   const live = canListen;
   const viaServer = !live && canRecord && canTranscribe;
-  // On a plain-http address neither path can work, but the reason is fixable —
-  // so the button stays and explains itself rather than vanishing.
-  const micAvailable = live || viaServer || !secure;
+
+  // Why dictation can't run, when it can't. The button stays either way and
+  // says so on click: a tester who sees no microphone has no way to tell a
+  // missing feature from a broken one, and reports "it doesn't work".
+  //
+  // The in-app browser is the case worth catching. A link opened inside
+  // Instagram, Messenger or similar runs in a webview that often has neither
+  // speech recognition nor MediaRecorder, and the person has no idea they're
+  // not in their normal browser.
+  const blockedReason = !secure
+    ? INSECURE_MESSAGE
+    : live || viaServer
+      ? null
+      : canRecord
+        ? "Dictation isn't set up on this deployment for browsers without built-in speech recognition."
+        : "This browser can't reach a microphone. If you opened this from inside another app, " +
+          "try opening it in Safari or Chrome instead.";
+
+  const micAvailable = live || viaServer || Boolean(blockedReason);
 
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -195,12 +211,16 @@ export default function Composer({
             style={{ fontSize: "var(--msg-size)" }}
           />
 
-          {/* Hidden entirely where neither path is possible, rather than shown
-              and then apologising. */}
+          {/* Always present when there's anything to say — working, or a reason
+              it isn't. A missing button is indistinguishable from a broken one. */}
           {micAvailable && !streaming && (
             <button
               onClick={
-                secure ? (listening ? stopDictation : startDictation) : () => setMicError(INSECURE_MESSAGE)
+                blockedReason
+                  ? () => setMicError(blockedReason)
+                  : listening
+                    ? stopDictation
+                    : startDictation
               }
               disabled={transcribing}
               aria-label={listening ? "Stop dictating" : "Dictate a message"}
@@ -208,7 +228,7 @@ export default function Composer({
               title={listening ? "Stop dictating" : "Dictate a message"}
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
                 listening ? "bg-accent text-page" : "text-muted hover:bg-panel hover:text-ink"
-              } disabled:opacity-40`}
+              } ${blockedReason ? "opacity-40" : ""} disabled:opacity-40`}
             >
               {transcribing ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
