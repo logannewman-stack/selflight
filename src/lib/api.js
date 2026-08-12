@@ -1,12 +1,25 @@
 // Talks to /api/chat. The model is never called from the browser — the API key
 // stays on the server, which is what makes this safe to deploy publicly.
 
+import { accessToken } from "./supabase.js";
+
 const ENDPOINT = "/api/chat";
+
+// The server needs to know who's asking: it looks up their connectors, counts
+// their usage against the monthly cap, and refuses the request outright if the
+// token doesn't check out.
+async function headers() {
+  const token = await accessToken();
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {})
+  };
+}
 
 async function post(payload, signal) {
   const res = await fetch(ENDPOINT, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await headers(),
     body: JSON.stringify(payload),
     signal
   });
@@ -70,7 +83,7 @@ export async function generateTitle(messages) {
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await headers(),
       body: JSON.stringify({ messages, task: "title" })
     });
     if (!res.ok) return null;

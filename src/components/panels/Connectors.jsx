@@ -2,7 +2,15 @@ import React, { useState } from "react";
 import { Globe, Link2, Plus, Trash2 } from "lucide-react";
 import { Button, Field, Section, Toggle } from "../ui.jsx";
 
-export default function Connectors({ settings, onSettings, connectors, onAdd, onUpdate, onRemove }) {
+export default function Connectors({
+  settings,
+  onSettings,
+  connectors,
+  signedIn,
+  onAdd,
+  onUpdate,
+  onRemove
+}) {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", url: "", token: "" });
   const [problem, setProblem] = useState(null);
@@ -80,6 +88,13 @@ export default function Connectors({ settings, onSettings, connectors, onAdd, on
                 onChange={(v) => onUpdate(connector.id, { enabled: v })}
               />
             </div>
+
+            {signedIn && (
+              <TokenRow
+                connector={connector}
+                onSave={(token) => onUpdate(connector.id, { token })}
+              />
+            )}
           </div>
         ))}
 
@@ -103,7 +118,11 @@ export default function Connectors({ settings, onSettings, connectors, onAdd, on
               placeholder="Optional"
               value={form.token}
               onChange={(e) => setForm({ ...form, token: e.target.value })}
-              hint="Stored in this browser and sent with each request. Most hosted MCP servers want an OAuth token, not the service's normal API key."
+              hint={
+                signedIn
+                  ? "Stored server-side and never sent back to a browser — not even yours. Most hosted MCP servers want an OAuth token, not the service's normal API key."
+                  : "Stored in this browser and sent with each request. Most hosted MCP servers want an OAuth token, not the service's normal API key."
+              }
             />
 
             {problem && <p className="text-sm text-accent">{problem}</p>}
@@ -140,7 +159,70 @@ export default function Connectors({ settings, onSettings, connectors, onAdd, on
           Connector support is a beta on the API. If your key doesn't have it yet, Selflight says so
           and answers without the connector instead of failing the message.
         </p>
+        {signedIn && (
+          <p className="text-sm leading-relaxed text-muted">
+            Your tokens are kept in a table no signed-in user can read — only the server reaches them,
+            and only to hand them to the API. That's why a stored token can be replaced but never shown.
+          </p>
+        )}
       </Section>
+    </div>
+  );
+}
+
+// A stored token is write-only by design, so this offers the two things that
+// are actually possible: put a new one in, or take it away.
+function TokenRow({ connector, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+
+  const commit = (token) => {
+    onSave(token);
+    setValue("");
+    setEditing(false);
+  };
+
+  return (
+    <div className="mt-2.5 border-t border-line pt-2.5">
+      {editing ? (
+        <div className="space-y-2">
+          <Field
+            label="Auth token"
+            type="password"
+            placeholder="Paste the new token"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button variant="solid" onClick={() => commit(value.trim())}>
+              Save token
+            </Button>
+            <Button variant="quiet" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="flex-1 text-sm text-muted">
+            {connector.hasToken ? "Auth token stored" : "No auth token"}
+          </span>
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded-md px-1.5 py-1 text-sm font-medium text-muted transition-colors hover:text-ink"
+          >
+            {connector.hasToken ? "Replace" : "Add"}
+          </button>
+          {connector.hasToken && (
+            <button
+              onClick={() => commit("")}
+              className="rounded-md px-1.5 py-1 text-sm font-medium text-muted transition-colors hover:text-accent"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

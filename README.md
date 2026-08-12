@@ -4,9 +4,10 @@ A minimal AI workspace — chat with web access and connectors on the left, a
 canvas for what gets built on the right, and a code workspace when you want to
 build a page from a sentence.
 
-Vite + React on the front end, one serverless function on the back. The model is
-called from the server so the API key never reaches the browser, which is what
-makes this safe to put on a public URL.
+Vite + React on the front end, serverless functions on the back, Postgres
+underneath when you want accounts. The model is called from the server so the
+API key never reaches the browser, which is what makes this safe to put on a
+public URL.
 
 ## Run it locally
 
@@ -17,19 +18,39 @@ npm run dev
 ```
 
 Open http://localhost:5173. `npm run dev` serves the front end *and* the `/api`
-function, so there's nothing else to start.
+functions, so there's nothing else to start.
 
 Get a key at https://console.anthropic.com → API Keys. Without one the app loads
 and says the key is missing instead of failing silently.
 
+That's the whole setup. Everything is stored in your browser and there's no sign-in.
+
+## Accounts
+
+Add a Supabase project and the same app grows accounts: sign-in, chats and
+settings that follow you between devices, connector tokens kept server-side, and
+a per-user monthly spend cap. **[supabase/README.md](supabase/README.md)** is the
+ten-minute version.
+
+The one thing worth knowing up front: once a project is configured, **signing in
+is required**. Without that, the first person to find your URL spends your
+Anthropic credits.
+
 ## Deploy
 
 Push to GitHub and import the repo at vercel.com — it detects Vite and the `api/`
-folder on its own. The only required setting:
+folder on its own. Then **Project → Settings → Environment Variables**:
 
-**Project → Settings → Environment Variables → `ANTHROPIC_API_KEY`**
+| Variable | |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Required. |
+| `VITE_SUPABASE_URL` | For accounts. |
+| `VITE_SUPABASE_ANON_KEY` | For accounts. Public by design. |
+| `SUPABASE_SERVICE_ROLE_KEY` | For accounts. Server only — never prefix it with `VITE_`. |
+| `SELFLIGHT_MONTHLY_TOKEN_CAP` | Optional, defaults to 2,000,000 per user per month. |
 
-Redeploy after adding it.
+Redeploy after adding them: Vite bakes the `VITE_` ones into the build, so a
+variable added after a build isn't in it.
 
 ## What's in it
 
@@ -129,8 +150,14 @@ Connector support is a beta on the Anthropic API. If your key doesn't have it en
 Selflight says so in the thread and answers without the connector instead of failing
 the message. The same fallback applies to web search.
 
-Tokens you enter are stored in your browser's `localStorage` and sent to your own
-serverless function, which forwards them to the API.
+Signed out, a token you enter is stored in your browser's `localStorage` and sent
+to your own serverless function, which forwards it to the API.
+
+Signed in, it never touches the browser's storage. It goes to `api/connectors.js`
+and into a table with row-level security on and no policies at all — which means
+no signed-in user can read it, the owner included, because there is no query that
+would return it. Only the service-role key reaches that table. The panel can
+replace a token or remove it, and can say whether one exists, but cannot show it.
 
 ## Proving the settings actually do something
 
@@ -142,7 +169,7 @@ request pieces — system prompt, effort, tools, MCP servers — and `npm test` 
 directly. No network, no API key, no dependencies:
 
 ```bash
-npm test        # 17 tests
+npm test        # 23 tests
 ```
 
 It checks that tone changes the prompt, that standing instructions are passed through
@@ -150,6 +177,10 @@ verbatim, that thinking depth becomes the `effort` parameter, that the web-searc
 adds and removes a real tool, that a connector becomes an `mcp_servers` entry *and* the
 matching toolset the API requires, that a paused connector is not sent at all, and that
 failed turns are never replayed to the model.
+
+Six of those are about the door being locked: with a Supabase project configured, a chat,
+build, or title request without a valid session is refused with a 401 before the model is
+ever reached. Delete the check and all six fail — which is the point of writing them.
 
 **The appearance settings reach the pixels.** For each control, `verify/appearance.mjs`
 reads the computed style of a real element before and after — an actual paragraph, the
@@ -170,15 +201,25 @@ wait on `document.fonts.load()` or the check races. And the conversation lives i
 container, so screenshotting that element captures only the visible slice; the fixture is
 kept short enough to fit on screen, and the hash covers the whole viewport.
 
+**The database keeps its promises.** If you've set up accounts, `npm run test:schema`
+builds a throwaway database from the migration on a local Postgres — never your project —
+and checks that the row-level policies isolate two real users, and that every column the
+app's queries name actually exists. 32 assertions and a schema cross-check; details in
+[supabase/README.md](supabase/README.md#check-it-worked).
+
 ## How it's put together
 
 | Path | What it does |
 | --- | --- |
-| `api/chat.js` | Calls the model, streams replies and tool activity back as server-sent events. Also builds pages and generates titles. |
+| `api/chat.js` | Calls the model, streams replies and tool activity back as server-sent events. Also builds pages, generates titles, verifies the session, and meters usage. |
 | `api/prompt.js` | Turns settings into the system prompt, effort, tools, and MCP servers. Tested by `api/prompt.test.mjs`. |
-| `src/App.jsx` | Layout, chat state, and the send/stream/retry cycle. |
+| `api/_supabase.js` | Service-role client, session verification, connector lookup, the spend cap. |
+| `api/connectors.js` | The only route a connector token passes through. |
+| `src/App.jsx` | Layout, chat state, auth, and the send/stream/retry cycle. |
 | `src/lib/api.js` | Browser side of the stream. |
-| `src/lib/storage.js` | Chats, settings, and connectors in `localStorage`. |
+| `src/lib/store.js` | One data interface over two backings — this browser, or Postgres. Nothing above it knows which. |
+| `src/lib/storage.js` | The browser backing: chats, settings, and connectors in `localStorage`. |
+| `supabase/` | Schema, setup guide, and the tests that prove the policies work. |
 | `src/lib/themes.js` | Palettes, applied as CSS variables. |
 | `src/lib/artifacts.js` | Pulls code blocks out of replies. |
 | `src/components/panels/` | Settings (Assistant / Appearance / Connectors tabs), Artifacts, Build, and the palette editor. |
@@ -201,11 +242,12 @@ Thinking depth is exposed to the user in **Customize** rather than hard-coded.
 
 ## What isn't here yet
 
-- **Accounts.** Everything lives in one browser's `localStorage`. Auth plus a database
-  is what turns this into something people log into on two devices.
-- **Billing.** No Stripe, no plans, no usage limits.
+- **Billing.** No Stripe and no plans — just a token cap per user per month.
 - **File and image uploads.**
 - **Artifact history across chats.** The canvas shows the current conversation only.
+- **Password reset.** Supabase can send the email; the screen for it isn't built.
+- **Sharing.** Every row belongs to exactly one person, by design. Shared chats would
+  mean new policies, not just new UI.
 
 ## Cost
 
@@ -213,3 +255,7 @@ You pay per message, not per user. A conversational reply runs a few cents on
 `claude-opus-5` and well under one cent on `claude-haiku-4-5`. Web searches and long
 threads cost more, because every turn resends the history — `CONTEXT_WINDOW` and the
 thinking-depth setting are the dials that bound it.
+
+With accounts on, every call is recorded in `usage_events` and the server stops
+answering past `SELFLIGHT_MONTHLY_TOKEN_CAP`. There's a query in
+[supabase/README.md](supabase/README.md#spending) for who spent what.

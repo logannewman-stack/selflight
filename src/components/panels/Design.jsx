@@ -78,8 +78,8 @@ export default function Design({
     return null;
   };
 
-  const runImport = () => {
-    const problem = onImportPalette(importText);
+  const runImport = async () => {
+    const problem = await onImportPalette(importText);
     if (problem) return setImportError(problem);
     setImportText("");
     setImportError(null);

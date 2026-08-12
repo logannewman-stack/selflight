@@ -8,10 +8,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test api/*.test.mjs",
-    "verify:appearance": "node verify/appearance.mjs"
+    "verify:appearance": "node verify/appearance.mjs",
+    "test:schema": "./supabase/tests/run.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
+    "@supabase/supabase-js": "^2.112.3",
     "highlight.js": "^11.12.0",
     "lucide-react": "^0.475.0",
     "react": "^18.3.1",

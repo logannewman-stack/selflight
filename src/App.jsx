@@ -4,33 +4,16 @@ import Sidebar from "./components/Sidebar.jsx";
 import Message from "./components/Message.jsx";
 import Composer from "./components/Composer.jsx";
 import RightPanel from "./components/RightPanel.jsx";
+import SignIn from "./components/SignIn.jsx";
 import Build from "./components/panels/Build.jsx";
 import { generateTitle, streamChat } from "./lib/api.js";
 import { extractArtifacts } from "./lib/artifacts.js";
 import { BUILT_IN_THEMES, applyFonts, applyTheme, resolvePalette } from "./lib/themes.js";
 import * as fontCatalogue from "./lib/fonts.js";
-import {
-  deletePalette,
-  draftFrom,
-  importPalette,
-  listPalettes,
-  refreshSwatch,
-  savePalette
-} from "./lib/palettes.js";
-import {
-  addConnector,
-  createChat,
-  deleteChat,
-  fallbackTitle,
-  listChats,
-  listConnectors,
-  loadSettings,
-  removeConnector,
-  renameChat,
-  saveMessages,
-  saveSettings,
-  updateConnector
-} from "./lib/storage.js";
+import { draftFrom, importPalette, refreshSwatch } from "./lib/palettes.js";
+import { fallbackTitle, loadSettings } from "./lib/storage.js";
+import { storeFor } from "./lib/store.js";
+import { hasSupabase, supabase } from "./lib/supabase.js";
 
 const SUGGESTIONS = [
   "Explain something I'm stuck on",
@@ -42,7 +25,7 @@ const SUGGESTIONS = [
 const ACTIVITY_ICONS = { search: Search, fetch: Globe, connector: Link2, tool: Sparkles };
 
 export default function App() {
-  const [chats, setChats] = useState(() => listChats());
+  const [chats, setChats] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -51,11 +34,22 @@ export default function App() {
   const [notice, setNotice] = useState(null);
   const [activity, setActivity] = useState(null);
 
+  // Whatever this browser last used, so the first paint is already themed while
+  // the account's real settings are still on their way.
   const [settings, setSettings] = useState(() => loadSettings());
-  const [connectors, setConnectors] = useState(() => listConnectors());
-  const [palettes, setPalettes] = useState(() => listPalettes());
+  const [connectors, setConnectors] = useState([]);
+  const [palettes, setPalettes] = useState([]);
   // An unsaved palette being edited. While set, it previews over the real theme.
   const [draft, setDraft] = useState(null);
+
+  // Signed out, or with no Supabase project configured, the store is this
+  // browser. Signed in, it's Postgres. Nothing below this line knows which.
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(!hasSupabase);
+  const store = useMemo(() => storeFor(user), [user?.id]);
+  // Which store the loaded data belongs to. Compared by identity so a settings
+  // write can never land in the account it wasn't read from.
+  const [loadedFor, setLoadedFor] = useState(null);
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
@@ -83,12 +77,72 @@ export default function App() {
 
   useEffect(() => {
     applyTheme(settings, { prefersDark, themes, override: draft });
-    saveSettings(settings);
   }, [settings, prefersDark, themes, draft]);
+
+  // Only write settings belonging to the store they were read from, or signing
+  // in would push this browser's defaults over the account's saved ones.
+  useEffect(() => {
+    if (loadedFor === store) store.settings.save(settings);
+  }, [settings, loadedFor, store]);
 
   useEffect(() => {
     applyFonts(settings, fontCatalogue);
   }, [settings.uiFont, settings.replyFont, settings.codeFont]);
+
+  /* --------------------------------- auth -------------------------------- */
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+      setAuthReady(true);
+    });
+
+    // Fires on sign-in, sign-out, token refresh, and on the magic-link return.
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthReady(true);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  // Everything the account owns, loaded together whenever the account changes.
+  useEffect(() => {
+    let live = true;
+    setLoadedFor(null);
+
+    (async () => {
+      const [nextChats, nextSettings, nextPalettes, nextConnectors] = await Promise.all([
+        store.chats.list(),
+        store.settings.load(),
+        store.palettes.list(),
+        store.connectors.list()
+      ]);
+      if (!live) return;
+
+      setChats(nextChats);
+      setSettings(nextSettings);
+      setPalettes(nextPalettes);
+      setConnectors(nextConnectors);
+      // A signed-in conversation isn't the signed-out one, so start clean.
+      chatIdRef.current = null;
+      setActiveId(null);
+      setMessages([]);
+      setLoadedFor(store);
+    })();
+
+    return () => {
+      live = false;
+    };
+  }, [store]);
+
+  const signOut = useCallback(async () => {
+    await supabase?.auth.signOut();
+    setSection(null);
+    setDraft(null);
+  }, []);
 
   // "Match system" needs the OS preference live, not only at first paint.
   useEffect(() => {
@@ -144,11 +198,11 @@ export default function App() {
   }, [stop]);
 
   const openChat = useCallback(
-    (chat) => {
+    async (chat) => {
       stop();
       chatIdRef.current = chat.id;
       setActiveId(chat.id);
-      setMessages(chat.messages || []);
+      setMessages([]);
       setError(null);
       setNotice(null);
       setStreaming(false);
@@ -156,17 +210,21 @@ export default function App() {
       setDrawerOpen(false);
       setPinned(true);
       setFocusSignal((n) => n + 1);
+
+      const history = await store.chats.messages(chat.id);
+      // A second click while this was loading wins; don't overwrite it.
+      if (chatIdRef.current === chat.id) setMessages(history);
     },
-    [stop]
+    [stop, store]
   );
 
   const removeChat = useCallback(
-    (id) => {
-      deleteChat(id);
-      setChats(listChats());
+    async (id) => {
+      await store.chats.remove(id);
+      setChats(await store.chats.list());
       if (chatIdRef.current === id) newChat();
     },
-    [newChat]
+    [newChat, store]
   );
 
   const toggleSection = useCallback((next, tab) => {
@@ -248,8 +306,8 @@ export default function App() {
       if (failed) setError(failed.message);
     }
 
-    saveMessages(chatId, final);
-    setChats(listChats());
+    await store.chats.saveMessages(chatId, final);
+    setChats(await store.chats.list());
     return { final, failed };
   };
 
@@ -259,29 +317,31 @@ export default function App() {
 
     const base = [...messages, { role: "user", text }];
     setInput("");
+    // Show the question straight away — the write behind it can take a moment.
+    setMessages(base);
 
     let chatId = chatIdRef.current;
     const isNew = !chatId;
 
     if (isNew) {
-      // Save the user's turn before the model answers, so a refresh mid-reply
+      // Store the user's turn before the model answers, so a refresh mid-reply
       // still leaves the question in history.
-      const chat = createChat({ title: fallbackTitle(text), messages: base });
+      const chat = await store.chats.create({ title: fallbackTitle(text), messages: base });
       chatId = chat.id;
       chatIdRef.current = chatId;
       setActiveId(chatId);
     } else {
-      saveMessages(chatId, base);
+      await store.chats.saveMessages(chatId, base);
     }
-    setChats(listChats());
+    setChats(await store.chats.list());
 
     const { final, failed } = await runTurn(base, chatId);
 
     if (isNew && !failed) {
       const title = await generateTitle(final);
       if (title) {
-        renameChat(chatId, title);
-        setChats(listChats());
+        await store.chats.rename(chatId, title);
+        setChats(await store.chats.list());
       }
     }
   };
@@ -326,9 +386,9 @@ export default function App() {
     rebase: (base) =>
       setDraft((d) => refreshSwatch({ ...d, vars: { ...base.vars }, dark: base.dark })),
 
-    save: () => {
-      const saved = savePalette(refreshSwatch(draft));
-      setPalettes(listPalettes());
+    save: async () => {
+      const saved = await store.palettes.save(refreshSwatch(draft));
+      setPalettes(await store.palettes.list());
       setDraft(null);
       selectPalette(saved);
       setSettingsTab("appearance");
@@ -341,10 +401,10 @@ export default function App() {
       setSection("settings");
     },
 
-    remove: () => {
+    remove: async () => {
       const id = draft.id;
-      deletePalette(id);
-      setPalettes(listPalettes());
+      await store.palettes.remove(id);
+      setPalettes(await store.palettes.list());
       setDraft(null);
       // Anything still pointing at the deleted package falls back to a built-in.
       setSettings((s) => ({
@@ -357,11 +417,11 @@ export default function App() {
       setSection("settings");
     },
 
-    import: (text) => {
+    import: async (text) => {
       try {
         const imported = importPalette(text, resolvePalette(settings, prefersDark, themes));
-        const saved = savePalette(imported);
-        setPalettes(listPalettes());
+        const saved = await store.palettes.save(imported);
+        setPalettes(await store.palettes.list());
         selectPalette(saved);
         return null;
       } catch (err) {
@@ -372,17 +432,20 @@ export default function App() {
 
   const connectorApi = {
     items: connectors,
-    add: (data) => {
-      addConnector(data);
-      setConnectors(listConnectors());
+    // Tokens behave differently with an account behind them: write-only rather
+    // than sitting in this browser, so the panel says something different too.
+    signedIn: Boolean(user),
+    add: async (data) => {
+      await store.connectors.add(data);
+      setConnectors(await store.connectors.list());
     },
-    update: (id, fields) => {
-      updateConnector(id, fields);
-      setConnectors(listConnectors());
+    update: async (id, fields) => {
+      await store.connectors.update(id, fields);
+      setConnectors(await store.connectors.list());
     },
-    remove: (id) => {
-      removeConnector(id);
-      setConnectors(listConnectors());
+    remove: async (id) => {
+      await store.connectors.remove(id);
+      setConnectors(await store.connectors.list());
     }
   };
 
@@ -401,6 +464,8 @@ export default function App() {
       artifactCount={artifacts.length}
       connectorCount={connectors.filter((c) => c.enabled).length}
       name={settings.callMe}
+      email={user?.email}
+      onSignOut={user ? signOut : null}
       onNew={newChat}
       onOpen={openChat}
       onDelete={removeChat}
@@ -411,6 +476,11 @@ export default function App() {
   const activeTitle = chats.find((c) => c.id === activeId)?.title;
   const ActivityIcon = activity ? ACTIVITY_ICONS[activity.kind] || Sparkles : null;
   const enabledConnectors = connectors.filter((c) => c.enabled).length;
+
+  // The theme is already applied to <html>, so an empty page here is a themed
+  // one rather than a white flash.
+  if (!authReady) return <div className="h-full bg-page" />;
+  if (hasSupabase && !user) return <SignIn />;
 
   return (
     <div className="flex h-full overflow-hidden">

@@ -3,6 +3,7 @@ import {
   Code2,
   Home,
   Link2,
+  LogOut,
   PanelLeft,
   Plus,
   Search,
@@ -43,6 +44,8 @@ export default function Sidebar({
   connectorCount,
   settingsTab,
   name,
+  email,
+  onSignOut,
   onNew,
   onOpen,
   onDelete,
@@ -194,22 +197,32 @@ export default function Sidebar({
         ))}
       </div>
 
-      <div className="border-t border-line p-2">
+      <div className="flex items-center gap-1 border-t border-line p-2">
         <button
           onClick={() => onSection("settings")}
           aria-label="Settings"
-          className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+          className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
             section === "settings" || section === "palette"
               ? "bg-surface"
               : "hover:bg-surface/60"
           }`}
         >
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-2xs font-bold text-page">
-            {(name || "You").slice(0, 2).toUpperCase()}
+            {(name || email || "You").slice(0, 2).toUpperCase()}
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{name || "You"}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{name || email || "You"}</span>
+            {/* Only worth a second line when it isn't already the first one. */}
+            {email && name && <span className="block truncate text-2xs text-soft">{email}</span>}
+          </span>
           <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-soft" strokeWidth={2} />
         </button>
+
+        {onSignOut && (
+          <IconButton label="Sign out" onClick={onSignOut}>
+            <LogOut className="h-4 w-4" strokeWidth={2} />
+          </IconButton>
+        )}
       </div>
     </div>
   );

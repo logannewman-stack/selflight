@@ -9,6 +9,13 @@ import {
   toTools,
   toolsWithoutMcp
 } from "./prompt.js";
+import {
+  connectorsFor,
+  hasSupabase,
+  recordUsage,
+  usageThisMonth,
+  userFromRequest
+} from "./_supabase.js";
 
 // Searches and multi-step tool use can run well past a default timeout.
 export const config = { maxDuration: 120 };
@@ -59,14 +66,34 @@ export default async function handler(req, res) {
   const messages = toApiMessages(body.messages);
   if (!messages.length) return json(res, 400, { error: "No messages to send." });
 
-  if (body.task === "title") return handleTitle(res, messages);
-  if (body.task === "build") return handleBuild(req, res, messages);
-  return handleChat(req, res, messages, body.settings || {}, body.connectors || []);
+  // With a Supabase project configured, a sign-in is required. Otherwise the
+  // first person to find the URL spends the API key's budget for everyone.
+  let user = null;
+  if (hasSupabase) {
+    user = await userFromRequest(req);
+    if (!user) return json(res, 401, { error: "Your session expired. Sign in again." });
+
+    const usage = await usageThisMonth(user.id);
+    if (usage.exceeded) {
+      return json(res, 429, {
+        error: `You've used this month's allowance of ${usage.cap.toLocaleString()} tokens. It resets on the 1st.`
+      });
+    }
+  }
+
+  if (body.task === "title") return handleTitle(res, messages, user);
+  if (body.task === "build") return handleBuild(req, res, messages, user);
+
+  // Connectors come from the database when there's an account, so their tokens
+  // never travel through the browser. Only a signed-out local session is
+  // trusted to describe its own connectors, and then only to itself.
+  const connectors = user ? await connectorsFor(user.id) : body.connectors || [];
+  return handleChat(req, res, messages, body.settings || {}, connectors, user);
 }
 
 /* -------------------------------- chat -------------------------------- */
 
-async function handleChat(req, res, messages, settings, connectors) {
+async function handleChat(req, res, messages, settings, connectors, user) {
   const servers = toMcpServers(connectors);
   const tools = toTools(settings, servers);
 
@@ -79,10 +106,10 @@ async function handleChat(req, res, messages, settings, connectors) {
     cache_control: { type: "ephemeral" }
   };
 
-  await converse(req, res, { base, messages, tools, servers });
+  await converse(req, res, { base, messages, tools, servers, user });
 }
 
-async function handleBuild(req, res, messages) {
+async function handleBuild(req, res, messages, user) {
   const base = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -92,12 +119,12 @@ async function handleBuild(req, res, messages) {
     cache_control: { type: "ephemeral" }
   };
 
-  await converse(req, res, { base, messages, tools: [], servers: [] });
+  await converse(req, res, { base, messages, tools: [], servers: [], user, kind: "build" });
 }
 
-async function converse(req, res, { base, messages, tools, servers }) {
+async function converse(req, res, { base, messages, tools, servers, user, kind = "chat" }) {
   sseHead(res);
-  const state = { emitted: false };
+  const state = { emitted: false, input: 0, output: 0 };
   let history = messages;
 
   try {
@@ -123,6 +150,22 @@ async function converse(req, res, { base, messages, tools, servers }) {
 
   send(res, { done: true });
   res.end();
+
+  // After the response, so bookkeeping never delays the reply. A paused turn
+  // bills for each round, so these are summed across all of them.
+  if (user) {
+    await recordUsage(user.id, { kind, model: MODEL, input: state.input, output: state.output });
+  }
+}
+
+function tally(state, message) {
+  const usage = message?.usage;
+  if (!usage) return;
+  state.input +=
+    (usage.input_tokens || 0) +
+    (usage.cache_creation_input_tokens || 0) +
+    (usage.cache_read_input_tokens || 0);
+  state.output += usage.output_tokens || 0;
 }
 
 // Tries the richest request first and steps down through the parts an account
@@ -208,7 +251,9 @@ async function pipe(req, res, state, start) {
       }
     }
 
-    return await stream.finalMessage();
+    const message = await stream.finalMessage();
+    tally(state, message);
+    return message;
   } finally {
     req.off("close", abort);
   }
@@ -239,7 +284,7 @@ function describeActivity(block) {
 
 /* ------------------------------- titles ------------------------------- */
 
-async function handleTitle(res, messages) {
+async function handleTitle(res, messages, user) {
   const opening = messages
     .slice(0, 2)
     .map((m) => `${m.role === "user" ? "Person" : "Selflight"}: ${flatten(m.content)}`)
@@ -255,6 +300,12 @@ async function handleTitle(res, messages) {
       output_config: { effort: "low" },
       messages: [{ role: "user", content: opening }]
     });
+
+    if (user) {
+      const state = { input: 0, output: 0 };
+      tally(state, message);
+      await recordUsage(user.id, { kind: "title", model: MODEL, ...state });
+    }
 
     if (message.stop_reason === "refusal") return json(res, 200, { title: null });
 

@@ -153,6 +153,14 @@ async function verify(label, field, act, { pixelsOptional = false } = {}) {
 await page.goto(URL, { waitUntil: "networkidle" });
 await page.waitForTimeout(1200);
 
+// If the app isn't what loaded, say so plainly — an HTTP proxy that swallows
+// localhost produces its own page here, and thirty seconds of "element not
+// found" is a poor way to learn that.
+if (!(await page.locator("textarea").count())) {
+  const body = (await page.locator("body").innerText()).slice(0, 200).replace(/\s+/g, " ");
+  throw new Error(`No composer at ${URL} — is \`npm run dev\` running? Page says: ${body}`);
+}
+
 await page.getByPlaceholder(/Message Selflight/).fill("Measure this interface");
 await page.getByLabel("Send message").click();
 await page.waitForTimeout(1500);
