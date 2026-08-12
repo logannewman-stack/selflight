@@ -1,0 +1,28 @@
+// What this deployment can actually do, so the interface can stop offering
+// things the configured model has no way to perform.
+//
+// Deliberately says nothing secret: the provider's name and two booleans. No
+// key, no account, no session needed — it's the same answer for everyone.
+
+import { provider } from "./provider.js";
+
+export default async function handler(req, res) {
+  const model = provider();
+
+  res.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    // Fine to hold briefly — it only changes when the deployment's keys do.
+    "Cache-Control": "public, max-age=60"
+  });
+
+  res.end(
+    JSON.stringify({
+      provider: model.name,
+      configured: model.configured(),
+      // Perplexity's API has no MCP equivalent, and its models search on their
+      // own rather than through a tool the interface can switch off.
+      connectors: model.name !== "Perplexity",
+      searchAlwaysOn: model.name === "Perplexity"
+    })
+  );
+}

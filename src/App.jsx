@@ -6,7 +6,7 @@ import Composer from "./components/Composer.jsx";
 import RightPanel from "./components/RightPanel.jsx";
 import SignIn from "./components/SignIn.jsx";
 import Build from "./components/panels/Build.jsx";
-import { generateTitle, streamChat } from "./lib/api.js";
+import { capabilities, generateTitle, streamChat } from "./lib/api.js";
 import { extractArtifacts } from "./lib/artifacts.js";
 import { BUILT_IN_THEMES, applyFonts, applyTheme, resolvePalette } from "./lib/themes.js";
 import * as fontCatalogue from "./lib/fonts.js";
@@ -51,6 +51,10 @@ export default function App() {
   // write can never land in the account it wasn't read from.
   const [loadedFor, setLoadedFor] = useState(null);
 
+  // What the configured model can do. Until it answers, assume the fuller set —
+  // hiding a working feature for a moment is worse than showing it.
+  const [can, setCan] = useState({ provider: null, connectors: true, searchAlwaysOn: false });
+
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
   const [settingsTab, setSettingsTab] = useState("assistant");
@@ -88,6 +92,10 @@ export default function App() {
   useEffect(() => {
     applyFonts(settings, fontCatalogue);
   }, [settings.uiFont, settings.replyFont, settings.codeFont]);
+
+  useEffect(() => {
+    capabilities().then((next) => next && setCan(next));
+  }, []);
 
   /* --------------------------------- auth -------------------------------- */
 
@@ -273,7 +281,12 @@ export default function App() {
     abortRef.current = controller;
 
     let acc = "";
+    let sources = [];
     let failed = null;
+
+    // Sources arrive before the text on a search-grounded model, so the reply
+    // carries whatever has landed by the time each chunk repaints.
+    const reply = () => ({ role: "selflight", text: acc, ...(sources.length ? { sources } : {}) });
 
     try {
       await streamChat(base, {
@@ -282,11 +295,15 @@ export default function App() {
         connectors,
         onActivity: (next) => isCurrent() && setActivity(next),
         onNotice: (text) => isCurrent() && setNotice(text),
+        onSources: (next) => {
+          sources = next;
+          if (isCurrent() && acc) setMessages([...base, reply()]);
+        },
         onText: (chunk) => {
           acc += chunk;
           if (isCurrent()) {
             setActivity(null);
-            setMessages([...base, { role: "selflight", text: acc }]);
+            setMessages([...base, reply()]);
           }
         }
       });
@@ -295,7 +312,7 @@ export default function App() {
       if (err.name !== "AbortError") failed = err;
     }
 
-    const final = acc ? [...base, { role: "selflight", text: acc }] : base;
+    const final = acc ? [...base, reply()] : base;
 
     setStreaming(false);
     setActivity(null);
@@ -435,6 +452,7 @@ export default function App() {
     // Tokens behave differently with an account behind them: write-only rather
     // than sitting in this browser, so the panel says something different too.
     signedIn: Boolean(user),
+    can,
     add: async (data) => {
       await store.connectors.add(data);
       setConnectors(await store.connectors.list());

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, Copy, RotateCw } from "lucide-react";
+import { Check, Copy, ExternalLink, RotateCw } from "lucide-react";
 import CodeBlock from "./CodeBlock.jsx";
 
 // react-markdown hands `pre` its `code` child as an element, so the fenced
@@ -154,6 +154,8 @@ export default function Message({ message, streaming, onRegenerate, options = {}
         {streaming && <span className="caret" aria-hidden="true" />}
       </div>
 
+      {!streaming && message.sources?.length > 0 && <Sources sources={message.sources} />}
+
       {!streaming && message.text && (
         <div className="mt-2.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
           <CopyButton text={message.text} />
@@ -165,6 +167,49 @@ export default function Message({ message, streaming, onRegenerate, options = {}
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// What the answer was actually built from. A search-grounded reply without its
+// sources is just an assertion, so these are shown rather than tucked away —
+// collapsed past four, because a long list buries the reply under itself.
+function Sources({ sources }) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? sources : sources.slice(0, 4);
+  const hidden = sources.length - shown.length;
+
+  return (
+    <div className="mt-3.5 border-t border-line pt-2.5 font-sans">
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.1em] text-soft">Sources</p>
+      <ol className="flex flex-wrap gap-1.5">
+        {shown.map((source, i) => (
+          <li key={source.url}>
+            <a
+              href={source.url}
+              target="_blank"
+              rel="noreferrer"
+              title={source.url}
+              className="flex max-w-[15rem] items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1 text-sm text-muted transition-colors hover:border-soft hover:text-ink"
+            >
+              <span className="text-2xs font-bold text-soft">{i + 1}</span>
+              <span className="truncate">{source.title}</span>
+              <ExternalLink className="h-3 w-3 shrink-0 text-soft" strokeWidth={2} />
+            </a>
+          </li>
+        ))}
+
+        {hidden > 0 && (
+          <li>
+            <button
+              onClick={() => setExpanded(true)}
+              className="rounded-lg border border-dashed border-line px-2 py-1 text-sm text-muted transition-colors hover:border-soft hover:text-ink"
+            >
+              +{hidden} more
+            </button>
+          </li>
+        )}
+      </ol>
     </div>
   );
 }

@@ -13,17 +13,34 @@ public URL.
 
 ```bash
 npm install
-cp .env.example .env.local     # then paste your Anthropic API key into it
+cp .env.example .env.local     # then paste your Perplexity API key into it
 npm run dev
 ```
 
 Open http://localhost:5173. `npm run dev` serves the front end *and* the `/api`
 functions, so there's nothing else to start.
 
-Get a key at https://console.anthropic.com → API Keys. Without one the app loads
-and says the key is missing instead of failing silently.
+Get a key at https://www.perplexity.ai/settings/api. Without one the app loads and
+says the key is missing instead of failing silently.
 
 That's the whole setup. Everything is stored in your browser and there's no sign-in.
+
+## Which model answers
+
+**Perplexity** by default. Its Sonar models answer from a live web search rather
+than from training data, so replies stay current and arrive with their sources
+attached — which the thread shows under each answer. Thinking depth in Customize
+picks the model and how widely it reads: `sonar` for quick, `sonar-pro` for
+balanced, `sonar-reasoning-pro` for deep.
+
+**Claude** if you set `ANTHROPIC_API_KEY` instead. Dearer, doesn't search by
+default, but it's the one that supports MCP connectors and writes replies long
+enough for the Code workspace to build a substantial page. Set both keys and
+Perplexity wins, so the cheaper one is never a surprise.
+
+The difference is contained in `api/providers/`. The interface asks the server
+what it can do and stops offering the rest — the connectors panel says so plainly
+rather than accepting a token that will never be used.
 
 ## Accounts
 
@@ -43,7 +60,7 @@ folder on its own. Then **Project → Settings → Environment Variables**:
 
 | Variable | |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | Required. |
+| `PERPLEXITY_API_KEY` | Required — or `ANTHROPIC_API_KEY` for Claude instead. |
 | `VITE_SUPABASE_URL` | For accounts. |
 | `VITE_SUPABASE_ANON_KEY` | For accounts. Public by design. |
 | `SUPABASE_SERVICE_ROLE_KEY` | For accounts. Server only — never prefix it with `VITE_`. |
@@ -57,8 +74,10 @@ variable added after a build isn't in it.
 **Chat** with streaming replies, markdown, auto-generated titles, and history that
 survives a refresh.
 
-**Web search and web fetch** are on by default. Selflight looks things up when the
-answer depends on current information and tells you what it's doing while it works.
+**Web search** is on by default, and on Perplexity it's how answers get written at
+all — the sources each reply used are listed underneath it, collapsed past four.
+Turning it off asks the model to answer from training data alone, which is faster
+and cheaper but knows nothing recent.
 
 **Artifacts.** Code and pages written during a chat collect in the right panel.
 HTML and SVG get a live preview; everything gets copy, download, and open-in-a-tab.
@@ -182,6 +201,12 @@ Six of those are about the door being locked: with a Supabase project configured
 build, or title request without a valid session is refused with a 401 before the model is
 ever reached. Delete the check and all six fail — which is the point of writing them.
 
+Fifteen more drive the Perplexity provider against a stand-in HTTP server speaking Sonar's
+wire format, because the streaming path is where things fail quietly. They cover the request
+it builds, deltas and cumulative replies both arriving as one clean answer, `<think>` blocks
+being stripped even when a tag splits across two chunks, sources surfacing once rather than
+per frame, and the token counts the spend cap depends on coming back correct.
+
 **The appearance settings reach the pixels.** For each control, `verify/appearance.mjs`
 reads the computed style of a real element before and after — an actual paragraph, the
 composer, a code block — and hashes a screenshot to confirm the rendering moved too:
@@ -211,10 +236,13 @@ app's queries name actually exists. 32 assertions and a schema cross-check; deta
 
 | Path | What it does |
 | --- | --- |
-| `api/chat.js` | Calls the model, streams replies and tool activity back as server-sent events. Also builds pages, generates titles, verifies the session, and meters usage. |
-| `api/prompt.js` | Turns settings into the system prompt, effort, tools, and MCP servers. Tested by `api/prompt.test.mjs`. |
+| `api/chat.js` | Who's asking, what they may spend, and the event stream back to the browser. Hands the conversation itself to a provider. |
+| `api/provider.js` | Picks the provider from whichever key is set. |
+| `api/providers/` | `perplexity.js` and `anthropic.js` — everything that differs between the two lives here. |
+| `api/prompt.js` | Turns settings into the system prompt, the model tier, tools, and MCP servers. Tested by `api/prompt.test.mjs`. |
 | `api/_supabase.js` | Service-role client, session verification, connector lookup, the spend cap. |
 | `api/connectors.js` | The only route a connector token passes through. |
+| `api/capabilities.js` | What this deployment's model can do, so the interface stops offering the rest. |
 | `src/App.jsx` | Layout, chat state, auth, and the send/stream/retry cycle. |
 | `src/lib/api.js` | Browser side of the stream. |
 | `src/lib/store.js` | One data interface over two backings — this browser, or Postgres. Nothing above it knows which. |
@@ -227,18 +255,18 @@ app's queries name actually exists. 32 assertions and a schema cross-check; deta
 
 ## Things you'll probably want to change
 
-`api/prompt.js`:
+All in `api/prompt.js`:
 
 - **`BASE_PROMPT`** — Selflight's personality and rules. The highest-leverage text in
   the project; editing it changes the product more than any UI change will.
-And in `api/chat.js`:
+- **`TIERS`** — which Sonar model each thinking depth uses, and how much of the web it
+  reads. This is the main cost dial, because Perplexity charges a per-request fee that
+  scales with search depth.
+- **`CONTEXT_WINDOW`** — how many past messages get resent each turn. Input is about 90%
+  of the bill, so halving this roughly halves the cost of long conversations.
 
-- **`MODEL`** — `claude-opus-5` is the most capable. `claude-sonnet-5` costs roughly
-  half per token; `claude-haiku-4-5` a fraction of that.
-- **`CONTEXT_WINDOW`** — how many past messages get resent each turn. Cost scales with
-  this, because the whole conversation is re-read on every reply.
-
-Thinking depth is exposed to the user in **Customize** rather than hard-coded.
+Thinking depth is exposed to the user in **Customize** rather than hard-coded; its default
+is in `DEFAULT_SETTINGS` in `src/lib/storage.js`.
 
 ## What isn't here yet
 
@@ -251,11 +279,12 @@ Thinking depth is exposed to the user in **Customize** rather than hard-coded.
 
 ## Cost
 
-You pay per message, not per user. A conversational reply runs a few cents on
-`claude-opus-5` and well under one cent on `claude-haiku-4-5`. Web searches and long
-threads cost more, because every turn resends the history — `CONTEXT_WINDOW` and the
-thinking-depth setting are the dials that bound it.
+You pay per message, not per user. On Perplexity a balanced reply runs about **2.6¢**
+and a quick one about **0.8¢** — token charges plus a per-request fee when the reply
+actually searches. A real tester using it a few times a week comes to roughly **$3 a
+month**; a six-week trial with 20 people lands near **$90** and can't exceed about
+**$330** with the cap in place.
 
-With accounts on, every call is recorded in `usage_events` and the server stops
-answering past `SELFLIGHT_MONTHLY_TOKEN_CAP`. There's a query in
-[supabase/README.md](supabase/README.md#spending) for who spent what.
+The full arithmetic, the per-depth table, and the query for who spent what are in
+[supabase/README.md → Spending](supabase/README.md#spending). Every call is recorded in
+`usage_events`, and the server stops answering past `SELFLIGHT_MONTHLY_TOKEN_CAP`.

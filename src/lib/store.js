@@ -146,13 +146,14 @@ function remoteStore(user) {
       async messages(id) {
         const { data, error } = await supabase
           .from("messages")
-          .select("role, content, error")
+          .select("role, content, sources, error")
           .eq("chat_id", id)
           .order("position");
         fail("loading a conversation", error);
         return (data || []).map((row) => ({
           role: row.role,
           text: row.content,
+          ...(row.sources?.length ? { sources: row.sources } : {}),
           ...(row.error ? { error: true } : {})
         }));
       },
@@ -187,6 +188,7 @@ function remoteStore(user) {
           user_id: uid,
           role: m.role,
           content: m.text ?? "",
+          sources: m.sources || [],
           error: Boolean(m.error)
         }));
 

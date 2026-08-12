@@ -7,6 +7,7 @@ export default function Connectors({
   onSettings,
   connectors,
   signedIn,
+  can = {},
   onAdd,
   onUpdate,
   onRemove
@@ -39,23 +40,41 @@ export default function Connectors({
       <Section title="Built in" hint="Server-side tools that need no setup.">
         <Toggle
           label="Web search"
-          hint="Looks things up when the answer depends on current information."
+          hint={
+            can.searchAlwaysOn
+              ? "Sonar answers from a live search and cites what it read. Turning this off asks it to answer from training data alone — faster and cheaper, but it won't know about anything recent."
+              : "Looks things up when the answer depends on current information."
+          }
           checked={settings.webSearch}
           onChange={(v) => onSettings({ webSearch: v })}
         />
-        <Toggle
-          label="Web fetch"
-          hint="Reads a specific page when you paste a link or ask about one."
-          checked={settings.webFetch}
-          onChange={(v) => onSettings({ webFetch: v })}
-        />
+        {!can.searchAlwaysOn && (
+          <Toggle
+            label="Web fetch"
+            hint="Reads a specific page when you paste a link or ask about one."
+            checked={settings.webFetch}
+            onChange={(v) => onSettings({ webFetch: v })}
+          />
+        )}
       </Section>
 
       <Section
         title="MCP connectors"
         hint="Connect a remote MCP server and Selflight can use its tools mid-conversation."
       >
-        {connectors.length === 0 && !adding && (
+        {can.connectors === false && (
+          <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
+            <p className="text-base font-medium">Not available on {can.provider || "this model"}</p>
+            <p className="mt-1 text-sm leading-relaxed text-muted">
+              MCP is an Anthropic protocol and Perplexity's API has no equivalent, so anything you
+              add here won't be reached. Set <code className="font-mono text-2xs">ANTHROPIC_API_KEY</code>{" "}
+              instead of <code className="font-mono text-2xs">PERPLEXITY_API_KEY</code> to switch
+              Selflight over to Claude, which does support them.
+            </p>
+          </div>
+        )}
+
+        {connectors.length === 0 && !adding && can.connectors !== false && (
           <div className="rounded-xl border border-dashed border-line px-3.5 py-5 text-center">
             <Link2 className="mx-auto mb-2 h-4 w-4 text-soft" strokeWidth={1.8} />
             <p className="text-sm leading-relaxed text-muted">
@@ -143,22 +162,34 @@ export default function Connectors({
             </div>
           </div>
         ) : (
-          <Button onClick={() => setAdding(true)}>
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
-            Add connector
-          </Button>
+          can.connectors !== false && (
+            <Button onClick={() => setAdding(true)}>
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+              Add connector
+            </Button>
+          )
         )}
       </Section>
 
       <Section title="Worth knowing">
-        <p className="text-sm leading-relaxed text-muted">
-          MCP servers are contacted by Anthropic's API rather than by your browser, so they have to
-          be public HTTPS endpoints — a server on your own machine won't be reachable.
-        </p>
-        <p className="text-sm leading-relaxed text-muted">
-          Connector support is a beta on the API. If your key doesn't have it yet, Selflight says so
-          and answers without the connector instead of failing the message.
-        </p>
+        {can.searchAlwaysOn ? (
+          <p className="text-sm leading-relaxed text-muted">
+            Sonar searches as part of answering rather than through a separate tool, so replies come
+            with sources attached. Thinking depth in Customize also sets how widely it reads — and
+            that's the main thing your usage costs.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm leading-relaxed text-muted">
+              MCP servers are contacted by Anthropic's API rather than by your browser, so they have
+              to be public HTTPS endpoints — a server on your own machine won't be reachable.
+            </p>
+            <p className="text-sm leading-relaxed text-muted">
+              Connector support is a beta on the API. If your key doesn't have it yet, Selflight says
+              so and answers without the connector instead of failing the message.
+            </p>
+          </>
+        )}
         {signedIn && (
           <p className="text-sm leading-relaxed text-muted">
             Your tokens are kept in a table no signed-in user can read — only the server reaches them,

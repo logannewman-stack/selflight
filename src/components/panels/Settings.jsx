@@ -64,6 +64,7 @@ export default function Settings({
             onSettings={onSettings}
             connectors={connectors.items}
             signedIn={connectors.signedIn}
+            can={connectors.can}
             onAdd={connectors.add}
             onUpdate={connectors.update}
             onRemove={connectors.remove}

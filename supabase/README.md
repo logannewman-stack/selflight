@@ -7,7 +7,8 @@ settings following them between devices.
 Two things change once it's set up:
 
 - **Signing in becomes required.** Without it, the first person to find your URL
-  spends your Anthropic credits. There is also a per-user monthly token cap.
+  spends your Perplexity credits. There is also a per-user monthly token cap —
+  see [Spending](#spending) for what to set it to.
 - **Connector tokens leave the browser.** They go into a table nobody can read —
   see [Where the tokens live](#where-the-tokens-live).
 
@@ -101,10 +102,59 @@ adds up the current calendar month before answering and refuses past the cap:
 SELFLIGHT_MONTHLY_TOKEN_CAP=2000000   # per user, per month. 0 removes it.
 ```
 
-Two million tokens is a lot of conversation and a real bill on a frontier model.
-Set it to what you're willing to lose, not what seems generous.
+### What a message costs
 
-Usage per person, this month:
+Perplexity bills two ways at once: per token, and a per-request fee when a reply
+actually searches the web. Selflight's thinking-depth setting moves both, because
+on Sonar the depth of an answer *is* the cost of it.
+
+| Depth | Model | Tokens (in / out per M) | Search fee | Per message |
+| --- | --- | --- | --- | --- |
+| Quick | `sonar` | $1 / $1 | ~$5 per 1,000 | **~0.8¢** |
+| Balanced *(default)* | `sonar-pro` | $3 / $15 | ~$10 per 1,000 | **~2.6¢** |
+| Deep | `sonar-reasoning-pro` | $2 / $8 | ~$14 per 1,000 | **~2.4¢** |
+
+Those per-message figures assume a mid-length conversation: ~4,600 tokens billed
+per turn, of which about 90% is input. Input dominates because every turn resends
+the thread — `CONTEXT_WINDOW` in `api/prompt.js` is 40 messages, and halving it
+roughly halves the input cost of long conversations.
+
+Two things worth noticing in that table. Deep is not the expensive one — Sonar Pro
+charges $15 per million output tokens against Reasoning Pro's $8. And search fees
+are a third of the bill at these volumes, which is why requests go out with
+`enable_search_classifier` set: a reply that doesn't need to search doesn't pay to.
+
+### What a person costs
+
+| | Messages / month | Cost / month |
+| --- | --- | --- |
+| Tried it, moved on | ~20 | ~$0.50 |
+| Real tester, a few times a week | ~120 | **~$3** |
+| Daily heavy use | ~300 | ~$7.50 |
+| Hits the 2M cap | ~430 | ~$11 *(the ceiling)* |
+
+So the cap is not a budget. It's a circuit breaker for a runaway script or a
+shared login — set high enough that using the product normally never touches it,
+because a wall in the middle of an evaluation gets you feedback about your billing
+rather than your product. **The budget is how many people you invite.**
+
+A six-week test with 20 people lands near **$90**, and cannot exceed about **$330**
+with the cap in place. Budget $150–200 and you have room to be wrong.
+
+If that's still more than you want to spend, the lever with the least downside is
+the default depth: `depth: "quick"` in `DEFAULT_SETTINGS` (`src/lib/storage.js`)
+cuts the per-message cost to about a third. Anyone who wants better answers can
+move their own setting up.
+
+Prices were checked in August 2026 and are Perplexity's published rates for the
+API, not a resale. Confirm them at
+[perplexity.ai pricing](https://docs.perplexity.ai/getting-started/pricing) before
+you rely on the totals — they move.
+
+### Watching it
+
+Check this weekly during a test — it's how you find out you were wrong about any
+of the above while it's still cheap to be wrong. Usage per person, this month:
 
 ```sql
 select u.email,
@@ -127,7 +177,7 @@ it, so the history can't be forged or erased from a browser.
 | `profiles` | Display name. Created automatically on signup. |
 | `user_settings` | The whole Settings panel as one JSON document. |
 | `palettes` | Colour packages you've written. |
-| `chats` / `messages` | Conversations. Messages are keyed by position, so regenerating a reply replaces it rather than appending a second one. |
+| `chats` / `messages` | Conversations, with the sources each reply was built from. Messages are keyed by position, so regenerating a reply replaces it rather than appending a second one. |
 | `connectors` | MCP servers: name, URL, on/off, and whether a token exists. |
 | `connector_secrets` | The tokens. Unreadable by anyone but the server. |
 | `usage_events` | One row per model call. |

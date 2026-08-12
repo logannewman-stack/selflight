@@ -48,6 +48,16 @@ export const LENGTHS = {
 
 export const DEPTHS = { quick: "low", balanced: "medium", deep: "high" };
 
+// The same "thinking depth" dial, translated for Perplexity. Sonar charges a
+// per-request fee that scales with how much of the web it reads, so on that
+// provider depth and cost are one setting: quick is a cheap model with a
+// shallow search, deep is a reasoning model reading widely.
+export const TIERS = {
+  quick: { model: "sonar", context: "low", reasoning: false },
+  balanced: { model: "sonar-pro", context: "medium", reasoning: false },
+  deep: { model: "sonar-reasoning-pro", context: "high", reasoning: true }
+};
+
 export const BUILD_PROMPT = `You build complete, self-contained web pages.
 
 Rules:
@@ -94,6 +104,10 @@ export function composeSystemPrompt(settings = {}) {
 
 export function effortFor(settings = {}) {
   return DEPTHS[settings.depth] || "medium";
+}
+
+export function tierFor(settings = {}) {
+  return TIERS[settings.depth] || TIERS.balanced;
 }
 
 export function toTools(settings = {}, servers = []) {

@@ -13,7 +13,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+process.env.PERPLEXITY_API_KEY = "pplx-test";
 process.env.SUPABASE_URL = "https://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
 

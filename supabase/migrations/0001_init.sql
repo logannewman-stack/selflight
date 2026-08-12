@@ -64,6 +64,10 @@ create table if not exists public.messages (
   user_id uuid not null references auth.users (id) on delete cascade,
   role text not null check (role in ('user', 'selflight')),
   content text not null,
+  -- What a search-grounded reply was built from: [{title, url}]. Kept with the
+  -- message, because an answer reopened a week later without its citations is
+  -- just an assertion.
+  sources jsonb not null default '[]'::jsonb,
   -- A failed turn is kept so the thread still shows what happened, but it is
   -- never replayed to the model.
   error boolean not null default false,

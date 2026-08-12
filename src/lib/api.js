@@ -31,7 +31,7 @@ async function post(payload, signal) {
   return res;
 }
 
-async function consume(res, { onText, onActivity, onNotice }) {
+async function consume(res, { onText, onActivity, onNotice, onSources }) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -59,6 +59,7 @@ async function consume(res, { onText, onActivity, onNotice }) {
       if (payload.text) onText?.(payload.text);
       if (payload.activity) onActivity?.(payload.activity);
       if (payload.notice) onNotice?.(payload.notice);
+      if (payload.sources) onSources?.(payload.sources);
       if (payload.error) failure = new Error(payload.error);
     }
   }
@@ -77,6 +78,18 @@ export async function streamBuild(messages, options = {}) {
   const { signal, ...handlers } = options;
   const res = await post({ messages, task: "build" }, signal);
   await consume(res, handlers);
+}
+
+// What the deployment's model can do. The interface asks once and stops
+// offering whatever comes back false.
+export async function capabilities() {
+  try {
+    const res = await fetch("/api/capabilities");
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 export async function generateTitle(messages) {
