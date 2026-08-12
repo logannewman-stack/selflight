@@ -1,21 +1,38 @@
 @tailwind base;
-@tailwind utilities;
 @tailwind components;
+@tailwind utilities;
 
 :root {
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: "Source Serif 4", ui-serif, Georgia, Cambria, serif;
+  --font-reading: var(--font-sans);
+
   /* Overwritten immediately by applyTheme(); these keep the first paint sane. */
-  --page: 250 249 247;
-  --panel: 243 241 236;
+  --page: 252 251 249;
+  --panel: 246 244 240;
   --surface: 255 255 255;
-  --line: 230 226 217;
-  --ink: 26 26 26;
-  --muted: 128 121 110;
-  --soft: 173 166 154;
-  --accent: 180 85 47;
-  --bubble: 26 26 26;
-  --bubbleInk: 255 255 255;
-  --code: 241 237 229;
-  --msg-size: 15px;
+  --raised: 255 255 255;
+  --line: 232 228 220;
+  --ink: 28 27 25;
+  --muted: 122 116 106;
+  --soft: 168 161 150;
+  --accent: 185 88 48;
+  --bubble: 28 27 25;
+  --bubbleInk: 252 251 249;
+  --code: 245 242 236;
+  --msg-size: 15.5px;
+
+  --shadow-sm: 0 1px 2px rgba(24, 22, 18, 0.05);
+  --shadow-md: 0 2px 8px rgba(24, 22, 18, 0.06), 0 1px 2px rgba(24, 22, 18, 0.04);
+  --shadow-lg: 0 16px 40px rgba(24, 22, 18, 0.11), 0 2px 8px rgba(24, 22, 18, 0.05);
+
+  --syn-key: 163 54 92;
+  --syn-str: 50 108 72;
+  --syn-com: 150 143 132;
+  --syn-num: 164 92 28;
+  --syn-fn: 56 88 158;
+  --syn-attr: 18 112 118;
 }
 
 @layer base {
@@ -26,7 +43,8 @@
   }
 
   body {
-    @apply bg-page text-ink antialiased;
+    @apply bg-page font-sans text-ink antialiased;
+    font-optical-sizing: auto;
   }
 
   /* Stops iOS zooming when the composer takes focus. */
@@ -35,8 +53,21 @@
     font-size: 16px;
   }
 
+  /* Keyboard users get a visible ring; pointer users don't. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
   ::selection {
-    background: rgb(var(--accent) / 0.22);
+    background: rgb(var(--accent) / 0.2);
+  }
+
+  /* Digits in timers, counts, and tables shouldn't jitter as they change. */
+  kbd,
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -48,29 +79,43 @@
     display: none;
   }
 
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--soft) / 0.35) transparent;
+  }
   .thin-scrollbar::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
   }
   .thin-scrollbar::-webkit-scrollbar-thumb {
-    background: rgb(var(--soft) / 0.4);
-    border: 3px solid transparent;
+    background: rgb(var(--soft) / 0.35);
+    border: 3.5px solid transparent;
     background-clip: content-box;
     border-radius: 999px;
   }
+  .thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--soft) / 0.6);
+    background-clip: content-box;
+  }
   .thin-scrollbar::-webkit-scrollbar-track {
     background: transparent;
+  }
+
+  /* Long-form replies read better with a measure, not the full pane width. */
+  .measure {
+    max-width: 74ch;
   }
 }
 
 .caret {
   display: inline-block;
-  width: 7px;
-  height: 15px;
-  margin-left: 2px;
-  vertical-align: -2px;
-  background: rgb(var(--ink));
-  animation: caret 1.1s steps(2, start) infinite;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: rgb(var(--accent));
+  animation: caret 1s steps(2, start) infinite;
 }
 
 @keyframes caret {
@@ -82,7 +127,7 @@
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(5px);
   }
   to {
     opacity: 1;
@@ -91,7 +136,86 @@
 }
 
 .rise {
-  animation: rise 0.18s ease-out both;
+  animation: rise 0.22s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.slide-in {
+  animation: slide-in 0.24s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/* ------------------------------ code colour ------------------------------ *
+ * Mapped to palette variables so a light theme never inherits a dark code
+ * block, which is the usual tell of a half-finished theme system.
+ * ------------------------------------------------------------------------ */
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-type,
+.hljs-built_in,
+.hljs-meta,
+.hljs-tag {
+  color: rgb(var(--syn-key));
+}
+
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-quote,
+.hljs-char.escape_ {
+  color: rgb(var(--syn-str));
+}
+
+.hljs-comment,
+.hljs-doctag {
+  color: rgb(var(--syn-com));
+  font-style: italic;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-deletion {
+  color: rgb(var(--syn-num));
+}
+
+.hljs-title,
+.hljs-title_,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-name,
+.hljs-section,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: rgb(var(--syn-fn));
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params,
+.hljs-operator {
+  color: rgb(var(--syn-attr));
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
 }
 
 /* Honour both the in-app setting and the OS-level preference. */

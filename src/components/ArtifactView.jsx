@@ -23,13 +23,13 @@ export function CodePane({ code, onChange, editable }) {
         value={code}
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
-        className="thin-scrollbar h-full w-full resize-none bg-codebg p-4 font-mono text-[12.5px] leading-relaxed outline-none"
+        className="thin-scrollbar h-full w-full resize-none bg-codebg p-4 font-mono text-sm leading-relaxed outline-none"
       />
     );
   }
 
   return (
-    <pre className="thin-scrollbar h-full overflow-auto bg-codebg p-4 font-mono text-[12.5px] leading-relaxed">
+    <pre className="thin-scrollbar h-full overflow-auto bg-codebg p-4 font-mono text-sm leading-relaxed">
       <code>{code}</code>
     </pre>
   );
@@ -72,7 +72,7 @@ export function ArtifactToolbar({ code, filename, renderable, view, onView, onRu
             <button
               key={mode}
               onClick={() => onView(mode)}
-              className={`rounded-[6px] px-2.5 py-1 text-[12px] font-medium capitalize transition-colors ${
+              className={`rounded-[6px] px-2.5 py-1 text-sm font-medium capitalize transition-colors ${
                 view === mode ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
               }`}
             >

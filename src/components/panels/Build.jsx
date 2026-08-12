@@ -78,8 +78,8 @@ export default function Build() {
       <div className="flex h-full flex-col">
         <div className="flex-1 overflow-y-auto px-5 py-8">
           <Wand2 className="mb-3 h-5 w-5 text-soft" strokeWidth={1.8} />
-          <h2 className="text-[17px] font-semibold tracking-[-0.2px]">Build something</h2>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
+          <h2 className="text-lg font-semibold tracking-[-0.2px]">Build something</h2>
+          <p className="mt-1.5 text-base leading-relaxed text-muted">
             Describe a page and Selflight writes it, runs it here, and keeps editing it as you ask
             for changes. Everything is one self-contained HTML file you can download.
           </p>
@@ -89,14 +89,14 @@ export default function Build() {
               <button
                 key={idea}
                 onClick={() => run(idea)}
-                className="block w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-left text-[13px] text-muted transition-colors hover:border-soft hover:text-ink"
+                className="block w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-left text-base text-muted transition-colors hover:border-soft hover:text-ink"
               >
                 {idea}
               </button>
             ))}
           </div>
 
-          {error && <p className="mt-4 text-[12.5px] text-accent">{error}</p>}
+          {error && <p className="mt-4 text-sm text-accent">{error}</p>}
         </div>
 
         <PromptBar
@@ -133,7 +133,7 @@ export default function Build() {
       </div>
 
       {error && (
-        <p className="border-t border-line px-4 py-2 text-[12.5px] text-accent">{error}</p>
+        <p className="border-t border-line px-4 py-2 text-sm text-accent">{error}</p>
       )}
 
       <PromptBar
@@ -163,7 +163,7 @@ function PromptBar({ value, onChange, onSubmit, busy, onStop, placeholder }) {
             }
           }}
           placeholder={placeholder}
-          className="no-scrollbar max-h-[120px] flex-1 resize-none bg-transparent py-1 text-[13.5px] outline-none placeholder:text-soft"
+          className="no-scrollbar max-h-[120px] flex-1 resize-none bg-transparent py-1 text-base outline-none placeholder:text-soft"
         />
         {busy ? (
           <Button variant="quiet" onClick={onStop} className="px-2 py-1">

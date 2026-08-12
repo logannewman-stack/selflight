@@ -2,61 +2,99 @@ import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, Copy, RotateCw } from "lucide-react";
+import CodeBlock from "./CodeBlock.jsx";
+
+// react-markdown hands `pre` its `code` child as an element, so the fenced
+// block is unwrapped here and re-rendered as a real component.
+function preToCodeBlock(children) {
+  const child = Array.isArray(children) ? children[0] : children;
+  const className = child?.props?.className || "";
+  const raw = child?.props?.children;
+
+  const code = typeof raw === "string" ? raw : Array.isArray(raw) ? raw.join("") : "";
+  const language = /language-([\w+-]+)/.exec(className)?.[1] || "";
+  return { code: code.replace(/\n$/, ""), language };
+}
 
 const markdown = {
-  p: (props) => <p className="mb-3 leading-[1.65] last:mb-0" {...props} />,
-  ul: (props) => <ul className="mb-3 list-disc space-y-1 pl-5 last:mb-0" {...props} />,
-  ol: (props) => <ol className="mb-3 list-decimal space-y-1 pl-5 last:mb-0" {...props} />,
-  li: (props) => <li className="leading-[1.6]" {...props} />,
-  h1: (props) => <h1 className="mb-2 mt-5 text-[1.14em] font-semibold first:mt-0" {...props} />,
-  h2: (props) => <h2 className="mb-2 mt-5 text-[1.07em] font-semibold first:mt-0" {...props} />,
-  h3: (props) => <h3 className="mb-2 mt-4 text-[1em] font-semibold first:mt-0" {...props} />,
+  p: (props) => <p className="mb-4 leading-[1.68] last:mb-0" {...props} />,
+  ul: (props) => <ul className="mb-4 list-disc space-y-1.5 pl-[1.4em] last:mb-0" {...props} />,
+  ol: (props) => <ol className="mb-4 list-decimal space-y-1.5 pl-[1.4em] last:mb-0" {...props} />,
+  li: (props) => <li className="leading-[1.62] pl-0.5" {...props} />,
+
+  h1: (props) => (
+    <h1
+      className="mb-2.5 mt-6 font-sans text-[1.22em] font-semibold tracking-[-0.02em] first:mt-0"
+      {...props}
+    />
+  ),
+  h2: (props) => (
+    <h2
+      className="mb-2 mt-6 font-sans text-[1.1em] font-semibold tracking-[-0.015em] first:mt-0"
+      {...props}
+    />
+  ),
+  h3: (props) => (
+    <h3 className="mb-1.5 mt-5 font-sans text-[1em] font-semibold first:mt-0" {...props} />
+  ),
+
   strong: (props) => <strong className="font-semibold" {...props} />,
-  hr: () => <hr className="my-4 border-line" />,
+  em: (props) => <em className="italic" {...props} />,
+  hr: () => <hr className="my-6 border-line" />,
+
   a: (props) => (
     <a
-      className="text-accent underline underline-offset-2"
+      className="font-medium text-accent underline decoration-accent/30 underline-offset-[3px] transition-colors hover:decoration-accent"
       target="_blank"
       rel="noreferrer"
       {...props}
     />
   ),
+
   blockquote: (props) => (
-    <blockquote className="mb-3 border-l-2 border-line pl-3 text-muted last:mb-0" {...props} />
-  ),
-  pre: (props) => (
-    <pre
-      className="thin-scrollbar mb-3 overflow-x-auto rounded-xl bg-codebg p-3.5 text-[0.86em] leading-relaxed last:mb-0"
+    <blockquote
+      className="mb-4 border-l-2 border-accent/40 pl-3.5 italic text-muted last:mb-0"
       {...props}
     />
   ),
-  code: ({ className, children, ...rest }) =>
-    className ? (
-      <code className={`${className} font-mono`} {...rest}>
-        {children}
-      </code>
-    ) : (
-      <code className="rounded bg-codebg px-1.5 py-0.5 font-mono text-[0.88em]" {...rest}>
-        {children}
-      </code>
-    ),
+
+  pre: ({ children }) => {
+    const { code, language } = preToCodeBlock(children);
+    return <CodeBlock code={code} language={language} />;
+  },
+
+  code: ({ className, children, ...rest }) => (
+    <code
+      className="rounded-md bg-codebg px-[0.35em] py-[0.15em] font-mono text-[0.85em] text-ink"
+      {...rest}
+    >
+      {children}
+    </code>
+  ),
+
   table: (props) => (
-    <div className="thin-scrollbar mb-3 overflow-x-auto last:mb-0">
-      <table className="w-full border-collapse text-left text-[0.94em]" {...props} />
+    <div className="thin-scrollbar mb-4 overflow-x-auto rounded-xl border border-line last:mb-0">
+      <table className="w-full border-collapse text-left text-[0.92em]" {...props} />
     </div>
   ),
+  thead: (props) => <thead className="bg-panel" {...props} />,
   th: (props) => (
-    <th className="border-b border-line px-3 py-2 font-semibold whitespace-nowrap" {...props} />
+    <th
+      className="whitespace-nowrap border-b border-line px-3 py-2 font-sans text-sm font-semibold"
+      {...props}
+    />
   ),
-  td: (props) => <td className="border-b border-line px-3 py-2 align-top" {...props} />
+  td: (props) => (
+    <td className="border-b border-line px-3 py-2 align-top last:border-b-0" {...props} />
+  )
 };
 
 export default function Message({ message, streaming, onRegenerate }) {
   if (message.role === "user") {
     return (
-      <div className="flex justify-end rise">
+      <div className="rise flex justify-end">
         <div
-          className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 leading-relaxed text-bubbleInk"
+          className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 leading-[1.6] text-bubbleInk"
           style={{ fontSize: "var(--msg-size)" }}
         >
           {message.text}
@@ -67,17 +105,20 @@ export default function Message({ message, streaming, onRegenerate }) {
 
   if (!message.text && streaming) {
     return (
-      <div className="flex gap-1.5 py-1.5">
+      <div className="flex gap-1.5 py-2">
         <Dot delay="0ms" />
-        <Dot delay="160ms" />
-        <Dot delay="320ms" />
+        <Dot delay="150ms" />
+        <Dot delay="300ms" />
       </div>
     );
   }
 
   return (
     <div className="group">
-      <div className="text-ink" style={{ fontSize: "var(--msg-size)" }}>
+      <div
+        className="font-reading text-ink"
+        style={{ fontSize: "var(--msg-size)" }}
+      >
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdown}>
           {message.text}
         </ReactMarkdown>
@@ -85,7 +126,7 @@ export default function Message({ message, streaming, onRegenerate }) {
       </div>
 
       {!streaming && message.text && (
-        <div className="mt-2 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        <div className="mt-2.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
           <CopyButton text={message.text} />
           {onRegenerate && (
             <Action onClick={onRegenerate} label="Regenerate this reply">
@@ -130,7 +171,7 @@ function Action({ children, onClick, label }) {
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-muted transition-colors hover:bg-panel hover:text-ink"
+      className="flex items-center gap-1.5 rounded-lg px-2 py-1 font-sans text-sm font-medium text-muted transition-colors hover:bg-panel hover:text-ink"
     >
       {children}
     </button>

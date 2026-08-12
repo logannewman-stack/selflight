@@ -1,5 +1,38 @@
-// Palettes are plain RGB triplets so Tailwind can drive them through CSS
-// variables — switching a theme repaints the whole app with no re-render.
+// Palettes are plain CSS variable values so Tailwind can drive them — switching
+// a theme is one style write rather than a re-render. Colour tokens are RGB
+// triplets (so Tailwind's `/ <alpha-value>` works); shadows are whole strings.
+
+const LIGHT_SHADOWS = {
+  "shadow-sm": "0 1px 2px rgba(24, 22, 18, 0.05)",
+  "shadow-md": "0 2px 8px rgba(24, 22, 18, 0.06), 0 1px 2px rgba(24, 22, 18, 0.04)",
+  "shadow-lg": "0 16px 40px rgba(24, 22, 18, 0.11), 0 2px 8px rgba(24, 22, 18, 0.05)"
+};
+
+const DARK_SHADOWS = {
+  "shadow-sm": "0 1px 2px rgba(0, 0, 0, 0.4)",
+  "shadow-md": "0 2px 10px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3)",
+  "shadow-lg": "0 20px 48px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4)"
+};
+
+// Code colouring is per-palette so a light theme never gets a dark code block
+// bolted onto it — the usual giveaway of a themed app that wasn't finished.
+const LIGHT_SYNTAX = {
+  "syn-key": "163 54 92",
+  "syn-str": "50 108 72",
+  "syn-com": "150 143 132",
+  "syn-num": "164 92 28",
+  "syn-fn": "56 88 158",
+  "syn-attr": "18 112 118"
+};
+
+const DARK_SYNTAX = {
+  "syn-key": "236 133 168",
+  "syn-str": "140 200 150",
+  "syn-com": "120 118 114",
+  "syn-num": "230 176 110",
+  "syn-fn": "142 176 236",
+  "syn-attr": "112 202 206"
+};
 
 export const THEMES = [
   {
@@ -7,19 +40,23 @@ export const THEMES = [
     name: "Paper",
     note: "Warm and low-glare. Easiest for long sessions.",
     dark: false,
-    swatch: ["#FAF9F7", "#1A1A1A", "#B4552F"],
+    swatch: ["#FCFBF9", "#1C1B19", "#B95830"],
     vars: {
-      page: "250 249 247",
-      panel: "243 241 236",
+      page: "252 251 249",
+      panel: "246 244 240",
       surface: "255 255 255",
-      line: "230 226 217",
-      ink: "26 26 26",
-      muted: "128 121 110",
-      soft: "173 166 154",
-      accent: "180 85 47",
-      bubble: "26 26 26",
-      bubbleInk: "255 255 255",
-      code: "241 237 229"
+      raised: "255 255 255",
+      line: "232 228 220",
+      ink: "28 27 25",
+      muted: "122 116 106",
+      soft: "168 161 150",
+      accent: "185 88 48",
+      accentSoft: "185 88 48",
+      bubble: "28 27 25",
+      bubbleInk: "252 251 249",
+      code: "245 242 236",
+      ...LIGHT_SHADOWS,
+      ...LIGHT_SYNTAX
     }
   },
   {
@@ -27,19 +64,23 @@ export const THEMES = [
     name: "Slate",
     note: "Cool and neutral. Keeps colour out of the way of your work.",
     dark: false,
-    swatch: ["#F7F8FA", "#16181D", "#2F6BB4"],
+    swatch: ["#F8F9FB", "#15171C", "#2C68B4"],
     vars: {
-      page: "247 248 250",
-      panel: "239 241 245",
+      page: "248 249 251",
+      panel: "240 242 246",
       surface: "255 255 255",
-      line: "223 226 233",
-      ink: "22 24 29",
-      muted: "110 118 132",
-      soft: "160 167 180",
-      accent: "47 107 180",
-      bubble: "22 24 29",
-      bubbleInk: "255 255 255",
-      code: "237 240 245"
+      raised: "255 255 255",
+      line: "224 227 234",
+      ink: "21 23 28",
+      muted: "108 116 130",
+      soft: "158 166 179",
+      accent: "44 104 180",
+      accentSoft: "44 104 180",
+      bubble: "21 23 28",
+      bubbleInk: "248 249 251",
+      code: "240 243 248",
+      ...LIGHT_SHADOWS,
+      ...LIGHT_SYNTAX
     }
   },
   {
@@ -47,19 +88,29 @@ export const THEMES = [
     name: "Focus",
     note: "Low stimulation. Muted contrast and one quiet accent, for when bright screens are too much.",
     dark: false,
-    swatch: ["#F2F3F0", "#2B302C", "#5F7A63"],
+    swatch: ["#F2F3F0", "#2B302C", "#5A7861"],
     vars: {
       page: "242 243 240",
-      panel: "235 237 233",
-      surface: "250 251 249",
-      line: "219 223 216",
+      panel: "236 238 234",
+      surface: "249 250 248",
+      raised: "252 252 251",
+      line: "220 224 217",
       ink: "43 48 44",
-      muted: "116 124 117",
-      soft: "163 170 162",
-      accent: "95 122 99",
+      muted: "112 121 114",
+      soft: "160 168 159",
+      accent: "90 120 97",
+      accentSoft: "90 120 97",
       bubble: "43 48 44",
-      bubbleInk: "245 247 244",
-      code: "232 235 230"
+      bubbleInk: "244 246 243",
+      code: "233 236 231",
+      ...LIGHT_SHADOWS,
+      // Desaturated so code doesn't become the loudest thing on a calm screen.
+      "syn-key": "122 88 108",
+      "syn-str": "80 112 92",
+      "syn-com": "154 160 152",
+      "syn-num": "140 112 76",
+      "syn-fn": "84 104 138",
+      "syn-attr": "72 116 116"
     }
   },
   {
@@ -67,19 +118,23 @@ export const THEMES = [
     name: "Midnight",
     note: "Dark with softened contrast. Kinder than pure black at night.",
     dark: true,
-    swatch: ["#1B1B1F", "#EDECE9", "#D9845F"],
+    swatch: ["#1B1B1F", "#EDECE9", "#DE8A63"],
     vars: {
       page: "27 27 31",
-      panel: "34 34 39",
+      panel: "33 33 38",
       surface: "38 38 44",
-      line: "56 56 63",
+      raised: "45 45 52",
+      line: "56 56 64",
       ink: "237 236 233",
-      muted: "154 151 146",
-      soft: "112 110 106",
-      accent: "217 132 95",
+      muted: "156 153 148",
+      soft: "114 112 108",
+      accent: "222 138 99",
+      accentSoft: "222 138 99",
       bubble: "237 236 233",
       bubbleInk: "27 27 31",
-      code: "44 44 50"
+      code: "23 23 27",
+      ...DARK_SHADOWS,
+      ...DARK_SYNTAX
     }
   },
   {
@@ -87,19 +142,23 @@ export const THEMES = [
     name: "Nocturne",
     note: "Near-black. Saves power on OLED and disappears in a dark room.",
     dark: true,
-    swatch: ["#0A0A0B", "#E8E8E6", "#7FA6C9"],
+    swatch: ["#0A0A0B", "#E9E9E7", "#84AACC"],
     vars: {
       page: "10 10 11",
       panel: "17 17 19",
-      surface: "21 21 24",
-      line: "38 38 42",
-      ink: "232 232 230",
-      muted: "143 143 140",
-      soft: "100 100 99",
-      accent: "127 166 201",
-      bubble: "232 232 230",
+      surface: "22 22 25",
+      raised: "28 28 32",
+      line: "39 39 44",
+      ink: "233 233 231",
+      muted: "146 146 143",
+      soft: "102 102 101",
+      accent: "132 170 204",
+      accentSoft: "132 170 204",
+      bubble: "233 233 231",
       bubbleInk: "10 10 11",
-      code: "24 24 27"
+      code: "16 16 18",
+      ...DARK_SHADOWS,
+      ...DARK_SYNTAX
     }
   },
   {
@@ -107,41 +166,63 @@ export const THEMES = [
     name: "High contrast",
     note: "Maximum separation between text and background, for low vision or bright rooms.",
     dark: false,
-    swatch: ["#FFFFFF", "#000000", "#0B4FD1"],
+    swatch: ["#FFFFFF", "#000000", "#0B44C4"],
     vars: {
       page: "255 255 255",
-      panel: "244 244 244",
+      panel: "243 243 243",
       surface: "255 255 255",
-      line: "24 24 24",
+      raised: "255 255 255",
+      line: "26 26 26",
       ink: "0 0 0",
-      muted: "60 60 60",
-      soft: "90 90 90",
-      accent: "11 79 209",
+      muted: "56 56 56",
+      soft: "84 84 84",
+      accent: "11 68 196",
+      accentSoft: "11 68 196",
       bubble: "0 0 0",
       bubbleInk: "255 255 255",
-      code: "240 240 240"
+      code: "241 241 241",
+      "shadow-sm": "0 0 0 1px rgba(0, 0, 0, 0.9)",
+      "shadow-md": "0 0 0 1px rgba(0, 0, 0, 0.9)",
+      "shadow-lg": "0 0 0 2px rgba(0, 0, 0, 0.9)",
+      "syn-key": "150 0 60",
+      "syn-str": "0 92 40",
+      "syn-com": "84 84 84",
+      "syn-num": "150 68 0",
+      "syn-fn": "11 68 196",
+      "syn-attr": "0 96 104"
     }
   }
 ];
 
 export const TEXT_SIZES = [
   { id: "sm", name: "Small", msg: "14px" },
-  { id: "md", name: "Medium", msg: "15px" },
+  { id: "md", name: "Medium", msg: "15.5px" },
   { id: "lg", name: "Large", msg: "17px" },
   { id: "xl", name: "Extra large", msg: "19px" }
 ];
 
-export function applyTheme({ theme, textSize, reduceMotion }) {
+export const READING_FACES = [
+  { id: "sans", name: "Sans", stack: "var(--font-sans)" },
+  { id: "serif", name: "Serif", stack: "var(--font-serif)" }
+];
+
+export function applyTheme({ theme, textSize, readingFace, reduceMotion }) {
   const palette = THEMES.find((t) => t.id === theme) || THEMES[0];
   const size = TEXT_SIZES.find((s) => s.id === textSize) || TEXT_SIZES[1];
+  const face = READING_FACES.find((f) => f.id === readingFace) || READING_FACES[0];
   const root = document.documentElement;
 
   for (const [key, value] of Object.entries(palette.vars)) {
     root.style.setProperty(`--${key}`, value);
   }
   root.style.setProperty("--msg-size", size.msg);
+  root.style.setProperty("--font-reading", face.stack);
   root.dataset.mode = palette.dark ? "dark" : "light";
   root.dataset.motion = reduceMotion ? "reduced" : "full";
   // Native controls (scrollbars, form widgets) follow the palette too.
   root.style.colorScheme = palette.dark ? "dark" : "light";
+
+  // Mobile browser chrome matches the app instead of banding against it.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", `rgb(${palette.vars.page.split(" ").join(", ")})`);
 }

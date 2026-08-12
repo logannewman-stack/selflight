@@ -50,7 +50,7 @@ export default function Connectors({ settings, onSettings, connectors, onAdd, on
         {connectors.length === 0 && !adding && (
           <div className="rounded-xl border border-dashed border-line px-3.5 py-5 text-center">
             <Link2 className="mx-auto mb-2 h-4 w-4 text-soft" strokeWidth={1.8} />
-            <p className="text-[12.5px] leading-relaxed text-muted">
+            <p className="text-sm leading-relaxed text-muted">
               Nothing connected yet. Add a server URL and its tools become available here.
             </p>
           </div>
@@ -61,8 +61,8 @@ export default function Connectors({ settings, onSettings, connectors, onAdd, on
             <div className="flex items-start gap-2">
               <Globe className="mt-0.5 h-4 w-4 shrink-0 text-soft" strokeWidth={2} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13.5px] font-medium">{connector.name}</p>
-                <p className="truncate text-[12px] text-muted">{connector.url}</p>
+                <p className="truncate text-base font-medium">{connector.name}</p>
+                <p className="truncate text-sm text-muted">{connector.url}</p>
               </div>
               <button
                 onClick={() => onRemove(connector.id)}
@@ -106,7 +106,7 @@ export default function Connectors({ settings, onSettings, connectors, onAdd, on
               hint="Stored in this browser and sent with each request. Most hosted MCP servers want an OAuth token, not the service's normal API key."
             />
 
-            {problem && <p className="text-[12.5px] text-accent">{problem}</p>}
+            {problem && <p className="text-sm text-accent">{problem}</p>}
 
             <div className="flex gap-2">
               <Button variant="solid" onClick={submit}>
@@ -132,11 +132,11 @@ export default function Connectors({ settings, onSettings, connectors, onAdd, on
       </Section>
 
       <Section title="Worth knowing">
-        <p className="text-[12.5px] leading-relaxed text-muted">
+        <p className="text-sm leading-relaxed text-muted">
           MCP servers are contacted by Anthropic's API rather than by your browser, so they have to
           be public HTTPS endpoints — a server on your own machine won't be reachable.
         </p>
-        <p className="text-[12.5px] leading-relaxed text-muted">
+        <p className="text-sm leading-relaxed text-muted">
           Connector support is a beta on the API. If your key doesn't have it yet, Selflight says so
           and answers without the connector instead of failing the message.
         </p>

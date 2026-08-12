@@ -39,7 +39,7 @@ export default function Artifacts({ artifacts }) {
             <button
               key={artifact.id}
               onClick={() => setSelectedId(artifact.id)}
-              className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors ${
+              className={`shrink-0 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
                 artifact.id === selected.id
                   ? "bg-ink text-page"
                   : "bg-surface text-muted ring-1 ring-line hover:text-ink"

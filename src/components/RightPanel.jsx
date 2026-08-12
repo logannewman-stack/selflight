@@ -14,9 +14,9 @@ const TITLES = {
 
 export default function RightPanel({ section, onClose, artifacts, settings, onSettings, connectors }) {
   return (
-    <aside className="flex h-full w-full flex-col border-l border-line bg-page md:w-[400px] lg:w-[460px]">
+    <aside className="slide-in flex h-full w-full flex-col border-l border-line bg-page md:w-[400px] lg:w-[460px]">
       <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-line px-4">
-        <span className="flex-1 text-[14px] font-medium">{TITLES[section]}</span>
+        <span className="flex-1 text-base font-semibold tracking-[-0.005em]">{TITLES[section]}</span>
         <button
           onClick={onClose}
           aria-label="Close panel"

@@ -326,7 +326,7 @@ export default function App() {
           )}
 
           <span
-            className={`min-w-0 flex-1 truncate text-[14px] ${
+            className={`min-w-0 flex-1 truncate text-base ${
               mode === "code" || activeTitle ? "font-medium" : "text-soft"
             }`}
           >
@@ -354,8 +354,8 @@ export default function App() {
               <div className="mx-auto w-full max-w-[760px] px-4 py-6">
                 {messages.length === 0 ? (
                   <div className="pt-[11vh]">
-                    <h1 className="text-[27px] font-semibold tracking-[-0.5px]">Selflight</h1>
-                    <p className="mt-1.5 text-[15px] text-muted">
+                    <h1 className="font-serif text-3xl font-normal tracking-[-0.02em]">Selflight</h1>
+                    <p className="mt-1.5 text-md text-muted">
                       {settings.callMe ? `What are you working on, ${settings.callMe}?` : "What are you working on?"}
                     </p>
 
@@ -364,7 +364,7 @@ export default function App() {
                         <button
                           key={s}
                           onClick={() => send(s)}
-                          className="rounded-full border border-line bg-surface px-3.5 py-2 text-[13.5px] text-muted transition-colors hover:border-soft hover:text-ink"
+                          className="rounded-full border border-line bg-surface px-3.5 py-2 text-base text-muted transition-colors hover:border-soft hover:text-ink"
                         >
                           {s}
                         </button>
@@ -388,21 +388,21 @@ export default function App() {
                     })}
 
                     {activity && (
-                      <div className="flex items-center gap-2 text-[13px] text-muted">
+                      <div className="flex items-center gap-2 text-base text-muted">
                         <ActivityIcon className="h-3.5 w-3.5 animate-pulse" strokeWidth={2} />
                         {activity.label}…
                       </div>
                     )}
 
                     {notice && (
-                      <div className="flex items-start gap-2 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[13px] text-muted">
+                      <div className="flex items-start gap-2 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base text-muted">
                         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
                         <span>{notice}</span>
                       </div>
                     )}
 
                     {error && (
-                      <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[13.5px] text-muted">
+                      <div className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-base text-muted">
                         <span className="flex-1">{error}</span>
                         <button
                           onClick={retry}

@@ -53,7 +53,30 @@ The output is one self-contained HTML file.
 instructions — all folded into the system prompt on the server.
 
 **Design** switches palettes (including two dark ones, a low-stimulation option, and a
-high-contrast option), text size, and reduced motion.
+high-contrast option), the reading typeface, text size, and reduced motion.
+
+## Design system
+
+Worth knowing before you change styles, because these are decisions rather than defaults.
+
+**Type.** Geist for the interface, Geist Mono for code, Source Serif 4 for the wordmark
+and as an optional reading face. One modular scale (`text-2xs` through `text-3xl`) with
+line-height and letter-spacing baked into each step, so vertical rhythm holds instead of
+drifting per component. Long-form replies can be read in serif — a setting, since that's
+a preference rather than a right answer.
+
+**Colour.** Every colour is a CSS variable, so switching a theme is one style write
+rather than a re-render. Six palettes, each carrying its own shadows *and* its own
+syntax-highlighting colours — a light theme never inherits a dark code block, which is
+the usual tell of a theme system that wasn't finished.
+
+**Code.** `highlight.js` core with a curated language set rather than the full bundle,
+mapped to palette variables. Blocks show their language and line count, collapse past 22
+lines, and copy in one click.
+
+**Motion and focus.** Transitions are short and eased-out. Keyboard users get a visible
+focus ring on every control; pointer users don't. Reduced motion is both a setting and an
+honoured OS preference.
 
 ## Connectors: read this before adding one
 

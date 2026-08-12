@@ -75,6 +75,7 @@ export const DEFAULT_SETTINGS = {
   // Appearance
   theme: "paper",
   textSize: "md",
+  readingFace: "sans",
   reduceMotion: false,
 
   // Personality — folded into the system prompt on the server.

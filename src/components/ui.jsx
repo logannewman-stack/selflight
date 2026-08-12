@@ -3,8 +3,8 @@ import React from "react";
 export function Section({ title, hint, children }) {
   return (
     <section className="border-b border-line px-4 py-5 last:border-b-0">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-soft">{title}</h3>
-      {hint && <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">{hint}</p>}
+      <h3 className="text-xs font-semibold uppercase tracking-[0.1em] text-soft">{title}</h3>
+      {hint && <p className="mt-1.5 text-sm leading-relaxed text-muted">{hint}</p>}
       <div className="mt-3.5 space-y-3.5">{children}</div>
     </section>
   );
@@ -30,8 +30,8 @@ export function Toggle({ checked, onChange, label, hint }) {
         />
       </button>
       <span className="min-w-0">
-        <span className="block text-[13.5px] font-medium">{label}</span>
-        {hint && <span className="mt-0.5 block text-[12.5px] leading-relaxed text-muted">{hint}</span>}
+        <span className="block text-base font-medium">{label}</span>
+        {hint && <span className="mt-0.5 block text-sm leading-relaxed text-muted">{hint}</span>}
       </span>
     </label>
   );
@@ -40,7 +40,7 @@ export function Toggle({ checked, onChange, label, hint }) {
 export function Choice({ label, options, value, onChange }) {
   return (
     <div>
-      {label && <p className="mb-2 text-[13.5px] font-medium">{label}</p>}
+      {label && <p className="mb-2 text-base font-medium">{label}</p>}
       <div className="flex flex-wrap gap-1.5">
         {options.map((option) => {
           const active = option.id === value;
@@ -50,7 +50,7 @@ export function Choice({ label, options, value, onChange }) {
               type="button"
               onClick={() => onChange(option.id)}
               title={option.hint}
-              className={`rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium transition-colors ${
+              className={`rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
                 active
                   ? "bg-ink text-page"
                   : "bg-surface text-muted ring-1 ring-line hover:text-ink"
@@ -68,12 +68,12 @@ export function Choice({ label, options, value, onChange }) {
 export function Field({ label, hint, ...props }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[13.5px] font-medium">{label}</span>
+      <span className="mb-1.5 block text-base font-medium">{label}</span>
       <input
         {...props}
-        className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13.5px] outline-none placeholder:text-soft focus:border-soft"
+        className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-base outline-none placeholder:text-soft focus:border-soft"
       />
-      {hint && <span className="mt-1.5 block text-[12px] leading-relaxed text-muted">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-sm leading-relaxed text-muted">{hint}</span>}
     </label>
   );
 }
@@ -81,13 +81,13 @@ export function Field({ label, hint, ...props }) {
 export function Area({ label, hint, rows = 4, ...props }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[13.5px] font-medium">{label}</span>
+      <span className="mb-1.5 block text-base font-medium">{label}</span>
       <textarea
         rows={rows}
         {...props}
-        className="thin-scrollbar w-full resize-y rounded-lg border border-line bg-surface px-3 py-2 text-[13.5px] leading-relaxed outline-none placeholder:text-soft focus:border-soft"
+        className="thin-scrollbar w-full resize-y rounded-lg border border-line bg-surface px-3 py-2 text-base leading-relaxed outline-none placeholder:text-soft focus:border-soft"
       />
-      {hint && <span className="mt-1.5 block text-[12px] leading-relaxed text-muted">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-sm leading-relaxed text-muted">{hint}</span>}
     </label>
   );
 }
@@ -101,7 +101,7 @@ export function Button({ children, variant = "ghost", className = "", ...props }
   return (
     <button
       {...props}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${styles[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-base font-medium transition-colors ${styles[variant]} ${className}`}
     >
       {children}
     </button>
@@ -112,8 +112,8 @@ export function Empty({ icon: Icon, title, children }) {
   return (
     <div className="px-6 py-14 text-center">
       {Icon && <Icon className="mx-auto mb-3 h-5 w-5 text-soft" strokeWidth={1.8} />}
-      <p className="text-[13.5px] font-medium">{title}</p>
-      <p className="mx-auto mt-1.5 max-w-[260px] text-[12.5px] leading-relaxed text-muted">
+      <p className="text-base font-medium">{title}</p>
+      <p className="mx-auto mt-1.5 max-w-[260px] text-sm leading-relaxed text-muted">
         {children}
       </p>
     </div>

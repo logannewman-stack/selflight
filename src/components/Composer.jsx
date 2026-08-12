@@ -70,7 +70,7 @@ export default function Composer({
           )}
         </div>
 
-        <div className="mt-2 flex items-center justify-center gap-3 text-[11px] text-soft">
+        <div className="mt-2 flex items-center justify-center gap-3 text-xs text-soft">
           {settings.webSearch && (
             <span className="flex items-center gap-1">
               <Globe className="h-3 w-3" strokeWidth={2} />

@@ -60,7 +60,7 @@ export default function Sidebar({
   return (
     <div className="flex h-full w-[252px] shrink-0 flex-col bg-panel">
       <div className="flex items-center justify-between px-4 pt-4">
-        <span className="text-[15px] font-semibold tracking-[-0.2px]">Selflight</span>
+        <span className="font-serif text-xl font-medium tracking-[-0.01em]">Selflight</span>
         <div className="flex items-center gap-0.5">
           <IconButton
             label={searching ? "Close search" : "Search chats"}
@@ -87,11 +87,11 @@ export default function Sidebar({
       <div className="px-3 pt-3">
         <button
           onClick={onNew}
-          className="flex w-full items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-[13.5px] font-medium transition-colors hover:border-soft"
+          className="flex w-full items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-base font-medium transition-colors hover:border-soft"
         >
           <Plus className="h-4 w-4" strokeWidth={2.4} />
           New chat
-          <kbd className="ml-auto text-[10.5px] font-normal text-soft">⌘K</kbd>
+          <kbd className="ml-auto text-2xs font-normal text-soft">⌘K</kbd>
         </button>
       </div>
 
@@ -103,7 +103,7 @@ export default function Sidebar({
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setSearching(false)}
             placeholder="Search chats"
-            className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] outline-none placeholder:text-soft focus:border-soft"
+            className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-base outline-none placeholder:text-soft focus:border-soft"
           />
         </div>
       )}
@@ -127,14 +127,14 @@ export default function Sidebar({
 
       <div className="thin-scrollbar mt-3.5 flex-1 overflow-y-auto px-3 pb-4">
         {filtered.length === 0 && (
-          <p className="px-2 pt-1 text-[12.5px] leading-relaxed text-soft">
+          <p className="px-2 pt-1 text-sm leading-relaxed text-soft">
             {chats.length === 0 ? "Your chats will show up here." : "No chats match that."}
           </p>
         )}
 
         {groups.map(([label, list]) => (
           <div key={label} className="mb-3 last:mb-0">
-            <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-soft">
+            <p className="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.1em] text-soft">
               {label}
             </p>
             {list.map((chat) => {
@@ -154,14 +154,14 @@ export default function Sidebar({
                       className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-accent" : "bg-transparent"}`}
                     />
                     <span
-                      className={`truncate text-[13px] ${active ? "font-medium text-ink" : "text-muted"}`}
+                      className={`truncate text-base ${active ? "font-medium text-ink" : "text-muted"}`}
                     >
                       {chat.title}
                     </span>
                   </button>
 
                   {confirming === chat.id ? (
-                    <div className="flex shrink-0 items-center gap-0.5 text-[11px] font-semibold">
+                    <div className="flex shrink-0 items-center gap-0.5 text-xs font-semibold">
                       <button
                         onClick={() => {
                           onDelete(chat.id);
@@ -251,10 +251,10 @@ function SettingsMenu({ name, section, onSection }) {
           open ? "bg-surface" : "hover:bg-surface/60"
         }`}
       >
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-[10px] font-bold text-page">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-2xs font-bold text-page">
           {(name || "You").slice(0, 2).toUpperCase()}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{name || "You"}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{name || "You"}</span>
         <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-soft" strokeWidth={2} />
       </button>
     </div>
@@ -271,8 +271,8 @@ function MenuItem({ icon: Icon, label, hint, active, onClick }) {
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted" strokeWidth={2} />
       <span className="min-w-0">
-        <span className="block text-[13px] font-medium">{label}</span>
-        <span className="block text-[11.5px] text-muted">{hint}</span>
+        <span className="block text-base font-medium">{label}</span>
+        <span className="block text-xs text-muted">{hint}</span>
       </span>
     </button>
   );
@@ -282,7 +282,7 @@ function Segment({ icon: Icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-[10px] py-1.5 text-[13px] font-medium transition-colors ${
+      className={`flex flex-1 items-center justify-center gap-1.5 rounded-[10px] py-1.5 text-base font-medium transition-colors ${
         active ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
       }`}
     >
@@ -296,14 +296,14 @@ function NavItem({ icon: Icon, label, onClick, active, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13.5px] transition-colors ${
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-base transition-colors ${
         active ? "bg-surface font-medium text-ink" : "text-muted hover:bg-surface/60 hover:text-ink"
       }`}
     >
       <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
       <span className="flex-1 truncate">{label}</span>
       {badge ? (
-        <span className="rounded-full bg-line px-1.5 py-0.5 text-[10px] font-bold text-muted">
+        <span className="rounded-full bg-line px-1.5 py-0.5 text-2xs font-bold text-muted">
           {badge}
         </span>
       ) : null}
