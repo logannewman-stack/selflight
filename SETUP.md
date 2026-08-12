@@ -189,6 +189,12 @@ add the Vercel URL to **Redirect URLs**, and make it the **Site URL**.
 
 ## 10 · Check the deployment
 
+Vercel serves every deployment over https with a valid certificate, and renews it
+itself — there is nothing to set up. That matters beyond the padlock: browsers
+only hand out a microphone on a secure origin, so dictation works on your Vercel
+address and on `localhost`, and nowhere else. Pointing a phone at your laptop's
+IP over plain http will never get a microphone, whatever the browser.
+
 ```bash
 npm run doctor -- https://your-app.vercel.app
 ```

@@ -75,6 +75,11 @@ folder on its own. Then **Project → Settings → Environment Variables**:
 Redeploy after adding them: Vite bakes the `VITE_` ones into the build, so a
 variable added after a build isn't in it.
 
+**https is automatic** and worth knowing about, because browsers only hand out a
+microphone on a secure origin. Dictation works on the deployed address and on
+`localhost`; a plain-http address — a laptop's IP on the local network, say — can
+never get one. `npm run doctor -- https://your-app` says which of those you're on.
+
 ## What's in it
 
 **Chat** with streaming replies, markdown, auto-generated titles, and history that

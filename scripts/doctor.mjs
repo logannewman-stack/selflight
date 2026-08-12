@@ -346,6 +346,11 @@ function projectRef(key) {
 async function checkDeployment(base) {
   section(`Deployment · ${base}`);
 
+  // Dictation, and the microphone generally, only work on a secure origin. On
+  // Vercel this is automatic — but "automatic" and "true" are different claims,
+  // and this is the one that decides whether the mic button works for anyone.
+  await checkHttps(base);
+
   try {
     const res = await fetch(new URL("/api/capabilities", base));
     if (!res.ok) {
@@ -388,6 +393,36 @@ async function checkDeployment(base) {
   } catch (err) {
     bad(`Couldn't reach ${base}`, err.message);
   }
+}
+
+async function checkHttps(base) {
+  let url;
+  try {
+    url = new URL(base);
+  } catch {
+    return bad(`"${base}" isn't a URL`, "Pass the full address, e.g. https://your-app.vercel.app");
+  }
+
+  if (url.protocol === "https:") {
+    // Reaching it at all over https means the certificate checked out — Node
+    // refuses the connection otherwise, which is exactly the check we want.
+    try {
+      await fetch(url.origin, { method: "HEAD" });
+      ok("Served over https with a valid certificate", "the microphone will work here");
+    } catch (err) {
+      bad("The https certificate wasn't accepted", err.message);
+    }
+    return;
+  }
+
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    return ok("localhost counts as a secure origin", "the microphone works here without https");
+  }
+
+  bad(
+    `${url.origin} is plain http, so browsers won't allow the microphone`,
+    "Use the deployed https address. A local network IP can't do dictation, whatever the browser."
+  );
 }
 
 /* --------------------------------- run it -------------------------------- */

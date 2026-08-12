@@ -10,7 +10,22 @@ const Recognition =
   typeof window !== "undefined" &&
   (window.SpeechRecognition || window.webkitSpeechRecognition);
 
-export const supported = Boolean(Recognition);
+// Browsers only hand out a microphone over HTTPS. localhost counts as secure,
+// so this is only ever false on a plain-http address — typically a phone
+// pointed at a laptop's IP on the same network.
+//
+// Worth checking separately rather than folding into `supported`, because the
+// two failures need different explanations: "your browser can't" is permanent,
+// "this address isn't secure" is a URL away from being fixed. Chrome makes this
+// worse by leaving SpeechRecognition defined on insecure pages and only failing
+// when you press the button.
+export const secure = typeof window === "undefined" || window.isSecureContext !== false;
+
+export const supported = Boolean(Recognition) && secure;
+
+export const INSECURE_MESSAGE =
+  "Dictation needs a secure (https) address. It works on your deployed site and on localhost, " +
+  "but not over a plain http address like a local network IP.";
 
 const MESSAGES = {
   "not-allowed": "Microphone access was blocked. Allow it in your browser's address bar and try again.",
@@ -96,6 +111,8 @@ export function dictate({ lang, onText, onEnd, onError } = {}) {
 // /api/transcribe — slower, because nothing appears until you stop talking, but
 // it means dictation isn't a Chrome-only feature.
 
+// getUserMedia isn't even defined on an insecure page, so this is already
+// false there — `secure` is what lets the interface say *why*.
 export const canRecord =
   typeof navigator !== "undefined" &&
   Boolean(navigator.mediaDevices?.getUserMedia) &&

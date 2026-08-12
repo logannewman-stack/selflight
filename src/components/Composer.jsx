@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ArrowUp, Check, ChevronDown, Globe, Link2, Loader2, Mic, Square } from "lucide-react";
-import { canRecord, dictate, record, supported as canListen } from "../lib/dictation.js";
+import {
+  INSECURE_MESSAGE,
+  canRecord,
+  dictate,
+  record,
+  secure,
+  supported as canListen
+} from "../lib/dictation.js";
 import { accessToken } from "../lib/supabase.js";
 import { EFFORTS, MODE, effortFor } from "../lib/brand.js";
 
@@ -34,7 +41,9 @@ export default function Composer({
   // audio is the fallback that makes this work in Firefox at all.
   const live = canListen;
   const viaServer = !live && canRecord && canTranscribe;
-  const micAvailable = live || viaServer;
+  // On a plain-http address neither path can work, but the reason is fixable —
+  // so the button stays and explains itself rather than vanishing.
+  const micAvailable = live || viaServer || !secure;
 
   const [listening, setListening] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -190,7 +199,9 @@ export default function Composer({
               and then apologising. */}
           {micAvailable && !streaming && (
             <button
-              onClick={listening ? stopDictation : startDictation}
+              onClick={
+                secure ? (listening ? stopDictation : startDictation) : () => setMicError(INSECURE_MESSAGE)
+              }
               disabled={transcribing}
               aria-label={listening ? "Stop dictating" : "Dictate a message"}
               aria-pressed={listening}
