@@ -261,6 +261,12 @@ export function describeError(err) {
   if (err?.status === 402) return "Perplexity says the account is out of credit.";
   if (err?.status === 429) return "Rate limited by Perplexity. Give it a moment and try again.";
   if (err?.status >= 500) return "Perplexity is having a moment. Try again.";
+
+  // A 400 is nearly always this deployment's fault — a model name that moved,
+  // a parameter the account can't use. Passing the API's own words through is
+  // the difference between a five-minute fix and an afternoon. It's Perplexity
+  // talking about the request, not anything the user typed.
+  if (err?.status === 400 && err.message) return `Perplexity rejected the request: ${err.message}`;
   return null;
 }
 

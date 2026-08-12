@@ -9,12 +9,17 @@ underneath when you want accounts. The model is called from the server so the
 API key never reaches the browser, which is what makes this safe to put on a
 public URL.
 
+**Setting this up for real?** [SETUP.md](SETUP.md) is the eleven-step version, from
+clone to a deployed URL with accounts, and `npm run doctor` checks every layer and
+prints the fix for whatever is broken.
+
 ## Run it locally
 
 ```bash
 npm install
 cp .env.example .env.local     # then paste your Perplexity API key into it
 npm run dev
+npm run doctor                 # confirms the key actually works
 ```
 
 Open http://localhost:5173. `npm run dev` serves the front end *and* the `/api`
@@ -252,6 +257,7 @@ app's queries name actually exists. 32 assertions and a schema cross-check; deta
 | `src/lib/artifacts.js` | Pulls code blocks out of replies. |
 | `src/components/panels/` | Settings (Assistant / Appearance / Connectors tabs), Artifacts, Build, and the palette editor. |
 | `verify/appearance.mjs` | Measures every appearance control against real computed styles and pixels. |
+| `scripts/doctor.mjs` | `npm run doctor` — checks the key, the schema, what the public key can read, and a deployment. |
 
 ## Things you'll probably want to change
 
