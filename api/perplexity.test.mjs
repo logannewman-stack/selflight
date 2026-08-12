@@ -18,6 +18,12 @@ function run(chunks) {
   return chunks.map(filter).map((step) => step.text).join("");
 }
 
+// The other half: what the model said to itself before answering.
+function reasoning(chunks) {
+  const filter = thinkFilter();
+  return chunks.map(filter).map((step) => step.reasoning).join("");
+}
+
 test("thinking depth picks a model and a search depth", () => {
   assert.equal(tierFor({ depth: "quick" }).model, "sonar");
   assert.equal(tierFor({ depth: "balanced" }).model, "sonar-pro");
@@ -39,6 +45,29 @@ test("only the reasoning model is expected to narrate", () => {
 
 test("reasoning is stripped out of the reply", () => {
   assert.equal(run(["<think>weighing it up</think>The answer."]), "The answer.");
+});
+
+test("reasoning is kept, not thrown away", () => {
+  // It's shown quietly above the answer, so it has to come out of the filter
+  // rather than being dropped on the floor.
+  assert.equal(reasoning(["<think>weighing it up</think>The answer."]), "weighing it up");
+});
+
+test("reasoning split across chunks reassembles in order", () => {
+  assert.equal(
+    reasoning(["<think>first I", " check the ta", "ble</think>Argentina."]),
+    "first I check the table"
+  );
+});
+
+test("nothing from the answer leaks into the reasoning", () => {
+  const chunks = ["<think>hmm</think>The answer, ", "which is long."];
+  assert.equal(reasoning(chunks), "hmm");
+  assert.equal(run(chunks), "The answer, which is long.");
+});
+
+test("a reply with no reasoning produces none", () => {
+  assert.equal(reasoning(["Just the answer."]), "");
 });
 
 test("reasoning split across chunks is still stripped", () => {

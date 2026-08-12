@@ -148,6 +148,12 @@ async function pipe(state, start, { signal, emit }) {
         if (activity) emit.activity(activity);
       }
 
+      // Claude thinks in its own block type rather than in tags inside the
+      // reply, so it arrives already separated.
+      if (event.type === "content_block_delta" && event.delta?.type === "thinking_delta") {
+        if (event.delta.thinking) emit.thinking(event.delta.thinking);
+      }
+
       if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
         const text = event.delta.text;
         if (!text) continue;

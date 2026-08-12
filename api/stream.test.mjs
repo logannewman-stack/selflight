@@ -53,11 +53,12 @@ after(() => server.close());
 
 // Collects everything the provider tried to show the reader.
 function recorder() {
-  const seen = { text: "", activity: [], notice: [], sources: [], error: [] };
+  const seen = { text: "", thinking: "", activity: [], notice: [], sources: [], error: [] };
   return {
     seen,
     emit: {
       text: (t) => (seen.text += t),
+      thinking: (t) => (seen.thinking += t),
       activity: (a) => seen.activity.push(a),
       notice: (n) => seen.notice.push(n),
       sources: (s) => seen.sources.push(...s),
@@ -147,14 +148,23 @@ test("a cumulative reply doesn't come out repeated", async () => {
   assert.equal(seen.text, "One two three");
 });
 
-test("reasoning never reaches the reader, but is announced", async () => {
+test("reasoning goes out separately from the answer", async () => {
   const { seen } = await converse(
     [delta("<think>let me chec"), delta("k the table</think>"), delta("Argentina.")],
     { depth: "deep" }
   );
 
+  // The two must not bleed into each other: the reply is what gets copied and
+  // sent back to the model, the reasoning is only ever shown.
   assert.equal(seen.text, "Argentina.");
+  assert.equal(seen.thinking, "let me check the table");
   assert.deepEqual(seen.activity, [{ kind: "tool", label: "Thinking it through" }]);
+});
+
+test("a reply without reasoning emits none", async () => {
+  const { seen } = await converse([delta("Just the answer.")], { depth: "balanced" });
+  assert.equal(seen.text, "Just the answer.");
+  assert.equal(seen.thinking, "");
 });
 
 test("sources are surfaced once, not once per frame", async () => {

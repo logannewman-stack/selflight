@@ -129,8 +129,12 @@ async function stream(body, { signal, emit, reasoning }) {
 
       const step = filter(piece);
 
-      // Reasoning models narrate inside <think> tags. Showing that raw looks
-      // broken, so it becomes the same status line a web search gets.
+      // Reasoning models narrate inside <think> tags before answering. That
+      // narration is worth reading, so it goes out as its own kind of content
+      // rather than being dropped — the interface shows it quietly, above the
+      // answer, while the answer is still being written.
+      if (step.reasoning) emit.thinking(step.reasoning);
+
       if (reasoning && step.thinking !== thinking) {
         thinking = step.thinking;
         if (thinking) emit.activity({ kind: "tool", label: "Thinking it through" });
@@ -175,6 +179,9 @@ function partialTail(text, tag) {
   return 0;
 }
 
+// Splits a stream into the answer and the reasoning that preceded it. Both come
+// out: the answer is the reply, and the reasoning is shown quietly above it
+// while the model is still working.
 function thinkFilter() {
   const OPEN = "<think>";
   const CLOSE = "</think>";
@@ -185,25 +192,29 @@ function thinkFilter() {
     let buffer = held + chunk;
     held = "";
     let out = "";
+    let reasoning = "";
 
     while (buffer) {
       const tag = inside ? CLOSE : OPEN;
       const at = buffer.indexOf(tag);
 
       if (at !== -1) {
-        if (!inside) out += buffer.slice(0, at);
+        (inside ? (reasoning += buffer.slice(0, at)) : (out += buffer.slice(0, at)));
         buffer = buffer.slice(at + tag.length);
         inside = !inside;
         continue;
       }
 
       const keep = partialTail(buffer, tag);
-      if (!inside) out += buffer.slice(0, buffer.length - keep);
+      const usable = buffer.slice(0, buffer.length - keep);
+      if (inside) reasoning += usable;
+      else out += usable;
+
       held = buffer.slice(buffer.length - keep);
       buffer = "";
     }
 
-    return { text: out, thinking: inside };
+    return { text: out, reasoning, thinking: inside };
   };
 }
 

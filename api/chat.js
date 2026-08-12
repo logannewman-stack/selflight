@@ -86,6 +86,7 @@ async function converse(req, res, { system, messages, settings, connectors, kind
       state.emitted = true;
       send(res, { text });
     },
+    thinking: (thinking) => send(res, { thinking }),
     activity: (activity) => send(res, { activity }),
     notice: (notice) => send(res, { notice }),
     sources: (sources) => send(res, { sources }),

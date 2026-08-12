@@ -287,19 +287,42 @@ export default function App() {
     abortRef.current = controller;
 
     let acc = "";
+    let think = "";
     let sources = [];
     let failed = null;
+    const startedAt = Date.now();
 
     // Sources arrive before the text on a search-grounded model, so the reply
-    // carries whatever has landed by the time each chunk repaints.
-    const reply = () => ({ role: "selflight", text: acc, ...(sources.length ? { sources } : {}) });
+    // carries whatever has landed by the time each chunk repaints. Thinking
+    // arrives before both.
+    const reply = () => ({
+      role: "selflight",
+      text: acc,
+      ...(think ? { thinking: think, thoughtMs: Date.now() - startedAt } : {}),
+      ...(sources.length ? { sources } : {})
+    });
+
+    // Everything that happens before the answer goes into one narration: the
+    // reasoning the model writes, and the searches it runs. Two competing
+    // displays of "what is it doing" would fight for the same attention.
+    const narrate = (chunk) => {
+      think += chunk;
+      if (isCurrent()) setMessages([...base, reply()]);
+    };
 
     try {
       await streamChat(base, {
         signal: controller.signal,
         settings,
         connectors,
-        onActivity: (next) => isCurrent() && setActivity(next),
+        onThinking: narrate,
+        onActivity: (next) => {
+          if (!isCurrent()) return;
+          setActivity(next);
+          // Tool use is part of the thought process, so it reads as a line in
+          // it rather than as a separate status elsewhere.
+          narrate(`${think && !think.endsWith("\n\n") ? "\n\n" : ""}${next.label}…\n\n`);
+        },
         onNotice: (text) => isCurrent() && setNotice(text),
         onSources: (next) => {
           sources = next;
@@ -630,7 +653,12 @@ export default function App() {
                       );
                     })}
 
-                    {activity && (
+                    {/* Activity used to live here as its own line. It's now a
+                        line inside the reply's thought process, so what the
+                        model is doing and what it's thinking read as one thing.
+                        This stays only for the moment before the first token,
+                        when there's no reply to put it in yet. */}
+                    {activity && !messages.at(-1)?.thinking && (
                       <div className="flex items-center gap-2 text-base text-muted">
                         <ActivityIcon className="h-3.5 w-3.5 animate-pulse" strokeWidth={2} />
                         {activity.label}…

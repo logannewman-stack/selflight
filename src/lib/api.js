@@ -31,7 +31,7 @@ async function post(payload, signal) {
   return res;
 }
 
-async function consume(res, { onText, onActivity, onNotice, onSources }) {
+async function consume(res, { onText, onThinking, onActivity, onNotice, onSources }) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -57,6 +57,7 @@ async function consume(res, { onText, onActivity, onNotice, onSources }) {
       }
 
       if (payload.text) onText?.(payload.text);
+      if (payload.thinking) onThinking?.(payload.thinking);
       if (payload.activity) onActivity?.(payload.activity);
       if (payload.notice) onNotice?.(payload.notice);
       if (payload.sources) onSources?.(payload.sources);

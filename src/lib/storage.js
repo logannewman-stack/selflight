@@ -112,7 +112,11 @@ export const DEFAULT_SETTINGS = {
   // Personality — folded into the system prompt on the server.
   tone: "balanced",
   length: "adaptive",
-  depth: "balanced",
+  // Deep, because it's the tier whose model actually writes down its
+  // reasoning — and the thought process is worth seeing. It costs about the
+  // same as balanced: sonar-reasoning-pro is $2/$8 per million against
+  // sonar-pro's $3/$15, which roughly cancels the deeper search fee.
+  depth: "deep",
   callMe: "",
   about: "",
   instructions: "",

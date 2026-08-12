@@ -68,6 +68,10 @@ create table if not exists public.messages (
   -- message, because an answer reopened a week later without its citations is
   -- just an assertion.
   sources jsonb not null default '[]'::jsonb,
+  -- The reasoning the model wrote before answering, and how long it took. Worth
+  -- keeping for the same reason as the sources: it's how you judge the answer.
+  thinking text,
+  thought_ms integer,
   -- A failed turn is kept so the thread still shows what happened, but it is
   -- never replayed to the model.
   error boolean not null default false,

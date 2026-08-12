@@ -88,6 +88,18 @@ Groq's is a fraction of that). Set one and dictation works for everybody; leave 
 and the button simply doesn't appear in Firefox rather than failing there. Either way the
 text lands in the message box to edit before sending.
 
+**Thinking out loud.** After you send a message, what the model is doing appears above the
+answer in quiet, light text — the searches it runs, and on the Deep tier the reasoning it
+writes before committing to anything. It scrolls itself while the reply is being written,
+then folds to a single line ("Thought for 6s") once the answer arrives, because by then you
+want the answer. Click it to read the reasoning again; it's kept with the message, so it's
+still there when you reopen the chat a week later.
+
+Only `sonar-reasoning-pro` — the **Deep** setting — writes its reasoning down, so that's the
+default. It costs about the same as Balanced: $2/$8 per million against Sonar Pro's $3/$15
+roughly cancels the deeper search fee. Set thinking depth to Quick or Balanced and the
+narration falls back to the searches alone.
+
 **Web search** is on by default, and on Perplexity it's how answers get written at
 all — the sources each reply used are listed underneath it, collapsed past four.
 Turning it off asks the model to answer from training data alone, which is faster

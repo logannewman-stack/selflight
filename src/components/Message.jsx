@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, Copy, ExternalLink, RotateCw } from "lucide-react";
+import { Check, ChevronRight, Copy, ExternalLink, RotateCw } from "lucide-react";
 import CodeBlock from "./CodeBlock.jsx";
 
 // react-markdown hands `pre` its `code` child as an element, so the fenced
@@ -127,7 +127,9 @@ export default function Message({ message, streaming, onRegenerate, options = {}
     );
   }
 
-  if (!message.text && streaming) {
+  // Dots only while there is genuinely nothing yet. Once it's thinking out
+  // loud, that narration is the better thing to look at.
+  if (!message.text && !message.thinking && streaming) {
     return (
       <div className="flex gap-1.5 py-2">
         <Dot delay="0ms" />
@@ -139,6 +141,10 @@ export default function Message({ message, streaming, onRegenerate, options = {}
 
   return (
     <div className="group">
+      {message.thinking && (
+        <Thinking text={message.thinking} ms={message.thoughtMs} streaming={streaming} />
+      )}
+
       <div
         className="font-reading text-ink"
         style={{
@@ -165,6 +171,65 @@ export default function Message({ message, streaming, onRegenerate, options = {}
               Retry
             </Action>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The model working, shown while it works.
+//
+// Deliberately quiet: a step down in size, lighter weight, secondary colour, and
+// set apart by a rule rather than a box. It's context for the answer, not the
+// answer — if it competed with the reply for attention it would be worse than
+// not showing it. While streaming it stays open and auto-scrolls; once the reply
+// arrives it folds away to a single line, because by then you want the answer.
+function Thinking({ text, ms, streaming }) {
+  // Open while it's happening, shut when it isn't. Starting from `streaming`
+  // rather than `true` is what makes a reply loaded from history — or one that
+  // finishes before the first paint — arrive already folded, instead of the
+  // reader having to close every old thought process by hand.
+  const [open, setOpen] = useState(streaming);
+  const scroller = useRef(null);
+  const wasStreaming = useRef(streaming);
+
+  // Fold it away on the transition out of streaming, but never re-open or
+  // re-close it after that — by then the reader has an opinion.
+  useEffect(() => {
+    if (wasStreaming.current && !streaming) setOpen(false);
+    wasStreaming.current = streaming;
+  }, [streaming]);
+
+  // Follow the newest line rather than making someone chase it.
+  useEffect(() => {
+    if (open && streaming && scroller.current) {
+      scroller.current.scrollTop = scroller.current.scrollHeight;
+    }
+  }, [text, open, streaming]);
+
+  const seconds = ms ? Math.max(1, Math.round(ms / 1000)) : null;
+
+  return (
+    <div className="mb-3.5 border-l-2 border-line pl-3.5">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 font-sans text-sm text-soft transition-colors hover:text-muted"
+      >
+        <ChevronRight
+          className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`}
+          strokeWidth={2.2}
+        />
+        {streaming ? "Thinking…" : seconds ? `Thought for ${seconds}s` : "Thought process"}
+      </button>
+
+      {open && (
+        <div
+          ref={scroller}
+          className="thin-scrollbar mt-1.5 max-h-[13rem] overflow-y-auto whitespace-pre-wrap pr-2 font-sans text-sm font-light leading-relaxed text-soft"
+        >
+          {text}
+          {streaming && <span className="caret" aria-hidden="true" />}
         </div>
       )}
     </div>
