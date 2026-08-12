@@ -7,7 +7,7 @@ import { Mark } from "./Logo.jsx";
 // no terminal, because needing one to find out what's wrong is a bad answer for
 // most of the people who'd want to run this.
 
-export default function Setup({ onDone }) {
+export default function Setup({ onDone, inset = !onDone }) {
   const [report, setReport] = useState(null);
   const [checking, setChecking] = useState(true);
   const [testing, setTesting] = useState(false);
@@ -30,7 +30,7 @@ export default function Setup({ onDone }) {
 
   if (checking && !report) {
     return (
-      <Frame>
+      <Frame inset={inset}>
         <Loader2 className="h-5 w-5 animate-spin text-soft" strokeWidth={2} />
       </Frame>
     );
@@ -38,7 +38,7 @@ export default function Setup({ onDone }) {
 
   if (report?.unreachable) {
     return (
-      <Frame>
+      <Frame inset={inset}>
         <h1 className="font-serif text-2xl">Can't reach the server</h1>
         <p className="mt-2 text-base leading-relaxed text-muted">
           The page loaded but the part that talks to the model didn't answer. If you're running this
@@ -51,12 +51,17 @@ export default function Setup({ onDone }) {
   const { model, accounts, cap } = report;
 
   return (
-    <Frame wide>
-      <Mark size={30} className="mb-4 text-accent" />
-      <h1 className="font-serif text-3xl font-normal tracking-[-0.02em]">Let's finish setting up</h1>
-      <p className="mt-1.5 text-md leading-relaxed text-muted">
-        Selflight needs one thing to work, and a second if you want people to sign in. This page
-        checks both and tells you what's left.
+    <Frame wide inset={inset}>
+      {!inset && <Mark size={30} className="mb-4 text-accent" />}
+      <h1
+        className={`font-serif font-normal tracking-[-0.02em] ${inset ? "text-xl" : "text-3xl"}`}
+      >
+        {inset ? "Status" : "Let's finish setting up"}
+      </h1>
+      <p className="mt-1.5 text-base leading-relaxed text-muted">
+        {inset
+          ? "What this deployment can do, checked live."
+          : "Selflight needs one thing to work, and a second if you want people to sign in. This page checks both and tells you what's left."}
       </p>
 
       <div className="mt-8 space-y-3">
@@ -135,10 +140,10 @@ export default function Setup({ onDone }) {
 
         <Step
           n={2}
-          done={accounts.state === "ok"}
+          done={accountsHealthy(accounts)}
           optional={accounts.state === "off"}
           title={
-            accounts.state === "ok"
+            accountsHealthy(accounts)
               ? "Accounts are working"
               : accounts.state === "off"
                 ? "Accounts — not set up yet"
@@ -175,7 +180,39 @@ export default function Setup({ onDone }) {
   );
 }
 
+// Derived from the evidence rather than taken on trust. A schema behind the app
+// once reported "ok" here, which is the worst possible answer to "did my fix
+// work?" — so the panel decides for itself.
+function accountsHealthy(accounts) {
+  return (
+    accounts.state === "ok" &&
+    !accounts.missingColumns?.length &&
+    !accounts.exposed?.length
+  );
+}
+
 function Accounts({ accounts, cap }) {
+  // Checked before anything else: a schema behind the app fails every message
+  // read and write while the tables and policies all look fine.
+  if (accounts.missingColumns?.length) {
+    return (
+      <Problem urgent>
+        <p className="font-semibold">This database is behind the app.</p>
+        <p className="mt-1.5">
+          public.messages is missing {accounts.missingColumns.join(", ")}, so messages can't be
+          saved or loaded — chats appear in the sidebar but open empty.
+        </p>
+        <p className="mt-2">
+          Open Supabase → <b>SQL Editor</b> and run{" "}
+          <code className="rounded bg-codebg px-1 py-0.5 font-mono text-2xs">
+            supabase/migrations/0002_repair.sql
+          </code>
+          , then press <b>Check again</b> below. It's safe to run twice and won't touch your chats.
+        </p>
+      </Problem>
+    );
+  }
+
   if (accounts.state === "off") {
     return (
       <>
@@ -323,10 +360,16 @@ function Accounts({ accounts, cap }) {
 
 /* --------------------------------- pieces -------------------------------- */
 
-function Frame({ children, wide }) {
+// Full-page when it's standing in for the app, narrower when it's a settings
+// tab — same content either way.
+function Frame({ children, wide, inset }) {
   return (
     <div className="thin-scrollbar h-full overflow-y-auto bg-page">
-      <div className={`mx-auto px-6 py-14 ${wide ? "max-w-[46rem]" : "max-w-[26rem]"}`}>
+      <div
+        className={`mx-auto ${inset ? "px-4 py-5" : "px-6 py-14"} ${
+          wide && !inset ? "max-w-[46rem]" : inset ? "max-w-none" : "max-w-[26rem]"
+        }`}
+      >
         {children}
       </div>
     </div>

@@ -1,15 +1,20 @@
 import React from "react";
-import { Link2, Palette, Sparkles } from "lucide-react";
+import { Activity, Link2, Palette, Sparkles } from "lucide-react";
 import Customize from "./Customize.jsx";
 import Design from "./Design.jsx";
 import Connectors from "./Connectors.jsx";
+import Setup from "../Setup.jsx";
 
 // One destination for everything configurable, rather than a menu that fans out
 // into separate panels.
 const TABS = [
   { id: "assistant", name: "Assistant", icon: Sparkles },
   { id: "appearance", name: "Appearance", icon: Palette },
-  { id: "connectors", name: "Connectors", icon: Link2 }
+  { id: "connectors", name: "Connectors", icon: Link2 },
+  // The setup screen used to appear only when the app couldn't work, which made
+  // it unreachable the moment it did — exactly when you want to check whether a
+  // fix took. It lives here too now.
+  { id: "status", name: "Status", icon: Activity }
 ];
 
 export default function Settings({
@@ -57,6 +62,8 @@ export default function Settings({
             onImportPalette={palette.import}
           />
         )}
+
+        {tab === "status" && <Setup />}
 
         {tab === "connectors" && (
           <Connectors
