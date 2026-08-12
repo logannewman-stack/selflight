@@ -14,7 +14,7 @@ import { BUILT_IN_THEMES, applyFonts, applyTheme, resolvePalette } from "./lib/t
 import * as fontCatalogue from "./lib/fonts.js";
 import { draftFrom, importPalette, refreshSwatch } from "./lib/palettes.js";
 import { modeLabel } from "./lib/brand.js";
-import { fallbackTitle, loadSettings } from "./lib/storage.js";
+import { fallbackTitle, lastChat, loadSettings, rememberChat } from "./lib/storage.js";
 import { storeFor } from "./lib/store.js";
 import { hasSupabase, supabase } from "./lib/supabase.js";
 
@@ -128,6 +128,10 @@ export default function App() {
     setLoadedFor(null);
 
     (async () => {
+      // Read before anything is written: the pointer has to survive this
+      // effect's own state updates.
+      const wanted = lastChat();
+
       const [nextChats, nextSettings, nextPalettes, nextConnectors] = await Promise.all([
         store.chats.list(),
         store.settings.load(),
@@ -140,10 +144,17 @@ export default function App() {
       setSettings(nextSettings);
       setPalettes(nextPalettes);
       setConnectors(nextConnectors);
-      // A signed-in conversation isn't the signed-out one, so start clean.
-      chatIdRef.current = null;
-      setActiveId(null);
-      setMessages([]);
+
+      // Land back in the conversation you were reading rather than on a blank
+      // one. Only if it's still there — a chat deleted on another device, or one
+      // belonging to the account you just signed out of, shouldn't reopen.
+      const previous = nextChats.find((c) => c.id === wanted);
+      const history = previous ? await store.chats.messages(previous.id) : [];
+      if (!live) return;
+
+      chatIdRef.current = previous?.id ?? null;
+      setActiveId(previous?.id ?? null);
+      setMessages(history);
       setLoadedFor(store);
     })();
 
@@ -151,6 +162,12 @@ export default function App() {
       live = false;
     };
   }, [store]);
+
+  // Gated on the load having finished, or the null this starts at would erase
+  // the pointer before the effect above ever got to read it.
+  useEffect(() => {
+    if (loadedFor === store) rememberChat(activeId);
+  }, [activeId, loadedFor, store]);
 
   const signOut = useCallback(async () => {
     await supabase?.auth.signOut();

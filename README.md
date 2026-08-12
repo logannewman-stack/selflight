@@ -83,7 +83,9 @@ never get one. `npm run doctor -- https://your-app` says which of those you're o
 ## What's in it
 
 **Chat** with streaming replies, markdown, auto-generated titles, and history that
-survives a refresh. The bar under the composer carries the controls worth having in reach
+survives a refresh — reopening lands you back in the conversation you were reading, not on
+a blank one. Signed out, that history is this browser's; signed in, it's the database, and
+it follows you between devices. The bar under the composer carries the controls worth having in reach
 while you type: web search on or off, and **Iris 6.0** with its effort setting — Quick,
 Balanced or Deep, each showing roughly what a message costs, because that's the setting
 that decides the bill.

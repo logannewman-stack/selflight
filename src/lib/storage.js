@@ -5,6 +5,9 @@
 const CHATS = "selflight.chats.v1";
 const SETTINGS = "selflight.settings.v1";
 const CONNECTORS = "selflight.connectors.v1";
+// Which conversation was open. Kept per device on purpose — a laptop and a
+// phone signed into the same account should each reopen where they were.
+const LAST = "selflight.lastChat.v1";
 
 function load(key, fallback) {
   try {
@@ -34,11 +37,37 @@ function readChats() {
   return Array.isArray(chats) ? chats : [];
 }
 
+// localStorage is a few megabytes, and a long history eventually fills it.
+// setItem then throws — which the generic save() swallowed, so chats quietly
+// stopped being saved while everything still looked fine on screen. Dropping
+// the oldest conversations and retrying loses the least, and a refusal to save
+// at all is at least reported.
+function saveChats(chats) {
+  let keep = [...chats].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+  while (keep.length) {
+    try {
+      localStorage.setItem(CHATS, JSON.stringify(keep));
+      if (keep.length < chats.length) {
+        console.warn(
+          `[storage] out of room — kept the ${keep.length} most recent chats, dropped ${
+            chats.length - keep.length
+          }. Sign in to keep history in the database instead.`
+        );
+      }
+      return;
+    } catch {
+      // Halve it rather than shaving one at a time: a full store means a lot of
+      // failed writes otherwise, and each one is slow.
+      keep = keep.slice(0, Math.floor(keep.length / 2));
+    }
+  }
+
+  console.error("[storage] this browser refused to save chats at all.");
+}
+
 function patchChat(id, fields) {
-  save(
-    CHATS,
-    readChats().map((c) => (c.id === id ? { ...c, ...fields, updatedAt: Date.now() } : c))
-  );
+  saveChats(readChats().map((c) => (c.id === id ? { ...c, ...fields, updatedAt: Date.now() } : c)));
 }
 
 export function listChats() {
@@ -47,8 +76,27 @@ export function listChats() {
 
 export function createChat({ title, messages }) {
   const chat = { id: uid("c"), title, messages, updatedAt: Date.now() };
-  save(CHATS, [chat, ...readChats()]);
+  saveChats([chat, ...readChats()]);
   return chat;
+}
+
+/* --------------------------- where you left off -------------------------- */
+
+export function rememberChat(id) {
+  try {
+    if (id) localStorage.setItem(LAST, id);
+    else localStorage.removeItem(LAST);
+  } catch {
+    // Reopening the last chat is a convenience; losing it is survivable.
+  }
+}
+
+export function lastChat() {
+  try {
+    return localStorage.getItem(LAST);
+  } catch {
+    return null;
+  }
 }
 
 export function saveMessages(id, messages) {
@@ -60,7 +108,7 @@ export function renameChat(id, title) {
 }
 
 export function deleteChat(id) {
-  save(CHATS, readChats().filter((c) => c.id !== id));
+  saveChats(readChats().filter((c) => c.id !== id));
 }
 
 export function fallbackTitle(text) {
