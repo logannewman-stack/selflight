@@ -4,15 +4,26 @@ import Artifacts from "./panels/Artifacts.jsx";
 import Connectors from "./panels/Connectors.jsx";
 import Customize from "./panels/Customize.jsx";
 import Design from "./panels/Design.jsx";
+import PaletteEditor from "./panels/PaletteEditor.jsx";
 
 const TITLES = {
   artifacts: "Artifacts",
   connectors: "Connectors",
   customize: "Customize",
-  design: "Design"
+  design: "Design",
+  palette: "Colour package"
 };
 
-export default function RightPanel({ section, onClose, artifacts, settings, onSettings, connectors }) {
+export default function RightPanel({
+  section,
+  onClose,
+  artifacts,
+  settings,
+  onSettings,
+  connectors,
+  themes,
+  palette
+}) {
   return (
     <aside className="slide-in flex h-full w-full flex-col border-l border-line bg-page md:w-[400px] lg:w-[460px]">
       <header className="flex h-[52px] shrink-0 items-center gap-2 border-b border-line px-4">
@@ -28,6 +39,7 @@ export default function RightPanel({ section, onClose, artifacts, settings, onSe
 
       <div className="min-h-0 flex-1">
         {section === "artifacts" && <Artifacts artifacts={artifacts} />}
+
         {section === "connectors" && (
           <Connectors
             settings={settings}
@@ -38,8 +50,32 @@ export default function RightPanel({ section, onClose, artifacts, settings, onSe
             onRemove={connectors.remove}
           />
         )}
+
         {section === "customize" && <Customize settings={settings} onSettings={onSettings} />}
-        {section === "design" && <Design settings={settings} onSettings={onSettings} />}
+
+        {section === "design" && (
+          <Design
+            settings={settings}
+            onSettings={onSettings}
+            themes={themes}
+            onEditPalette={palette.edit}
+            onNewPalette={palette.create}
+            onImportPalette={palette.import}
+          />
+        )}
+
+        {section === "palette" && palette.draft && (
+          <PaletteEditor
+            draft={palette.draft}
+            existing={palette.existing}
+            onChange={palette.change}
+            onSave={palette.save}
+            onCancel={palette.cancel}
+            onDelete={palette.remove}
+            onRebase={palette.rebase}
+            bases={themes.filter((t) => !t.custom)}
+          />
+        )}
       </div>
     </aside>
   );

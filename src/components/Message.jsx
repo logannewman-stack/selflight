@@ -18,26 +18,26 @@ function preToCodeBlock(children) {
 
 function buildMarkdown({ lineNumbers, codeWrap }) {
   return {
-    p: (props) => <p className="mb-4 leading-[inherit] last:mb-0" {...props} />,
-    ul: (props) => <ul className="mb-4 list-disc space-y-1.5 pl-[1.4em] last:mb-0" {...props} />,
-    ol: (props) => <ol className="mb-4 list-decimal space-y-1.5 pl-[1.4em] last:mb-0" {...props} />,
+    p: (props) => <p className="mb-[var(--para-gap)] leading-[inherit] last:mb-0" {...props} />,
+    ul: (props) => <ul className="mb-[var(--para-gap)] list-disc space-y-1.5 pl-[1.4em] last:mb-0" {...props} />,
+    ol: (props) => <ol className="mb-[var(--para-gap)] list-decimal space-y-1.5 pl-[1.4em] last:mb-0" {...props} />,
     li: (props) => <li className="pl-0.5 leading-[inherit]" {...props} />,
 
     h1: (props) => (
       <h1
-        className="mb-2.5 mt-6 font-sans text-[1.22em] font-semibold leading-tight tracking-[-0.02em] first:mt-0"
+        className="mb-2.5 mt-6 font-sans text-[length:var(--h1)] font-semibold leading-tight tracking-[-0.02em] first:mt-0"
         {...props}
       />
     ),
     h2: (props) => (
       <h2
-        className="mb-2 mt-6 font-sans text-[1.1em] font-semibold leading-tight tracking-[-0.015em] first:mt-0"
+        className="mb-2 mt-6 font-sans text-[length:var(--h2)] font-semibold leading-tight tracking-[-0.015em] first:mt-0"
         {...props}
       />
     ),
     h3: (props) => (
       <h3
-        className="mb-1.5 mt-5 font-sans text-[1em] font-semibold leading-snug first:mt-0"
+        className="mb-1.5 mt-5 font-sans text-[length:var(--h3)] font-semibold leading-snug first:mt-0"
         {...props}
       />
     ),
@@ -101,7 +101,11 @@ export default function Message({ message, streaming, onRegenerate, options = {}
   );
 
   if (message.role === "user") {
-    const style = { fontSize: "var(--msg-size)", lineHeight: "var(--leading-msg)" };
+    const style = {
+      fontSize: "var(--msg-size)",
+      lineHeight: "var(--leading-msg)",
+      letterSpacing: "var(--tracking-body)"
+    };
 
     if (options.bubbles === "plain") {
       return (
@@ -137,7 +141,12 @@ export default function Message({ message, streaming, onRegenerate, options = {}
     <div className="group">
       <div
         className="font-reading text-ink"
-        style={{ fontSize: "var(--msg-size)", lineHeight: "var(--leading-msg)" }}
+        style={{
+          fontSize: "var(--msg-size)",
+          lineHeight: "var(--leading-msg)",
+          fontWeight: "var(--weight-body)",
+          letterSpacing: "var(--tracking-body)"
+        }}
       >
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdown}>
           {message.text}

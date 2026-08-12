@@ -56,29 +56,51 @@ instructions — all folded into the system prompt on the server.
 
 | Group | Options |
 | --- | --- |
-| Colour | Six palettes, match-system light/dark pairing, nine accent colours |
+| Colour packages | Six built-in palettes, match-system light/dark pairing, nine accent colours, plus your own packages — see below |
+| Typefaces | 25 faces, chosen separately for interface, replies, and code |
+| Typography | Text size, weight, line spacing, letter spacing, paragraph spacing, heading size, reduced motion |
 | Layout | Density, conversation width, corner rounding, bubble or plain user messages |
-| Type | Separate typefaces for interface and replies, text size, line spacing, reduced motion |
 | Code | Code size, wrap long lines, line numbers |
 | Behaviour | Send with Enter or ⌘+Enter, open artifacts automatically |
 
-Everything is one click, applies instantly, persists, and has a reset that leaves your
-chats and instructions alone.
+Everything applies instantly, persists, and has a reset that leaves your chats,
+instructions, and saved packages alone.
+
+### Writing your own colour package
+
+Design → **New package**, or the pencil on any palette (a built-in gets duplicated so the
+presets stay intact). You get every colour token the app uses — surfaces, text, accent,
+message bubbles, and all seven code colours — each as a swatch and a hex field, previewing
+live as you type. Nothing is stored until you save.
+
+Two things make it usable rather than fiddly:
+
+- **Start from** loads every colour from an existing palette. Turning a light theme dark by
+  hand means editing ten tokens through an unreadable middle state; rebasing onto a dark
+  preset and changing the accent takes two clicks.
+- **Readability** shows WCAG contrast ratios for the pairs that matter and flags anything
+  under AA. It warns rather than blocks — it's your palette — but you'll know.
+
+A package is plain JSON. Copy it, download it, or paste someone else's into **Import**;
+hex and `"r g b"` both work, as does a bare map of colours.
 
 ## Design system
 
 Worth knowing before you change styles, because these are decisions rather than defaults.
 
-**Type.** Geist for the interface, Geist Mono for code, Source Serif 4 for the wordmark
-and as an optional reading face. One modular scale (`text-2xs` through `text-3xl`) with
-line-height and letter-spacing baked into each step, so vertical rhythm holds instead of
-drifting per component. Long-form replies can be read in serif — a setting, since that's
-a preference rather than a right answer.
+**Type.** Geist for the interface, Geist Mono for code, Source Serif 4 for the wordmark.
+One modular scale (`text-2xs` through `text-3xl`) with line-height and letter-spacing baked
+into each step, so vertical rhythm holds instead of drifting per component. The catalogue in
+`src/lib/fonts.js` holds 25 faces, and only the three defaults ship in `index.html` — the
+rest are fetched the first time someone selects one, so a big library costs nothing until
+it's used. Atkinson Hyperlegible and Lexend are in there for legibility research reasons
+rather than fashion.
 
 **Colour.** Every colour is a CSS variable, so switching a theme is one style write
-rather than a re-render. Six palettes, each carrying its own shadows *and* its own
-syntax-highlighting colours — a light theme never inherits a dark code block, which is
-the usual tell of a theme system that wasn't finished.
+rather than a re-render — and it's why user-authored packages are first-class rather than
+overrides: a saved package is the same shape as a built-in. Each palette carries its own
+shadows *and* its own syntax-highlighting colours, so a light theme never inherits a dark
+code block, which is the usual tell of a theme system that wasn't finished.
 
 **Code.** `highlight.js` core with a curated language set rather than the full bundle,
 mapped to palette variables. Blocks show their language and line count, collapse past 22

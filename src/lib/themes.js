@@ -33,7 +33,7 @@ const DARK_SYNTAX = {
   "syn-attr": "112 202 206"
 };
 
-export const THEMES = [
+export const BUILT_IN_THEMES = [
   {
     id: "paper",
     name: "Paper",
@@ -219,10 +219,32 @@ export const CODE_SIZES = [
   { id: "lg", name: "Large", value: "0.96em" }
 ];
 
-export const FACES = [
-  { id: "geist", name: "Geist", stack: "var(--font-geist)" },
-  { id: "serif", name: "Serif", stack: "var(--font-serif)" },
-  { id: "system", name: "System", stack: "var(--font-system)" }
+export const WEIGHTS = [
+  { id: "light", name: "Light", value: "350" },
+  { id: "regular", name: "Regular", value: "400" },
+  { id: "book", name: "Book", value: "450" },
+  { id: "medium", name: "Medium", value: "500" }
+];
+
+// Extra letter-spacing measurably helps some dyslexic readers, so this goes
+// wider than a designer would normally allow.
+export const TRACKINGS = [
+  { id: "tight", name: "Tight", value: "-0.011em" },
+  { id: "normal", name: "Normal", value: "0em" },
+  { id: "wide", name: "Wide", value: "0.02em" },
+  { id: "wider", name: "Wider", value: "0.045em" }
+];
+
+export const HEADING_SCALES = [
+  { id: "flat", name: "Flat", vars: { h1: "1.06em", h2: "1em", h3: "0.95em" } },
+  { id: "normal", name: "Normal", vars: { h1: "1.22em", h2: "1.1em", h3: "1em" } },
+  { id: "loud", name: "Loud", vars: { h1: "1.5em", h2: "1.28em", h3: "1.1em" } }
+];
+
+export const PARA_SPACINGS = [
+  { id: "tight", name: "Tight", value: "0.7em" },
+  { id: "normal", name: "Normal", value: "1em" },
+  { id: "loose", name: "Loose", value: "1.4em" }
 ];
 
 export const DENSITIES = [
@@ -269,30 +291,43 @@ export function resolveThemeId(settings, prefersDark) {
   return prefersDark ? settings.darkTheme : settings.lightTheme;
 }
 
-export function applyTheme(settings, prefersDark = false) {
-  const palette = THEMES.find((t) => t.id === resolveThemeId(settings, prefersDark)) || THEMES[0];
+export function resolvePalette(settings, prefersDark, themes = BUILT_IN_THEMES) {
+  const id = resolveThemeId(settings, prefersDark);
+  return themes.find((t) => t.id === id) || themes[0] || BUILT_IN_THEMES[0];
+}
+
+// `override` lets the palette editor preview an unsaved draft without saving it
+// or touching the stored settings.
+export function applyTheme(settings, { prefersDark = false, themes, override } = {}) {
+  const palette = override || resolvePalette(settings, prefersDark, themes);
   const root = document.documentElement;
 
   for (const [key, value] of Object.entries(palette.vars)) {
     root.style.setProperty(`--${key}`, value);
   }
 
+  // A custom palette owns its accent outright; the accent picker only overrides
+  // the built-ins, whose accent is a default rather than a decision.
   const accent = pick(ACCENTS, settings.accent);
-  if (accent.rgb) root.style.setProperty("--accent", accent.rgb);
+  if (accent.rgb && !palette.custom) root.style.setProperty("--accent", accent.rgb);
 
-  for (const [key, value] of Object.entries(pick(DENSITIES, settings.density).vars)) {
-    root.style.setProperty(`--${key}`, value);
-  }
-  for (const [key, value] of Object.entries(pick(CORNERS, settings.corners).vars)) {
-    root.style.setProperty(`--${key}`, value);
+  for (const group of [
+    pick(DENSITIES, settings.density),
+    pick(CORNERS, settings.corners),
+    pick(HEADING_SCALES, settings.headingScale)
+  ]) {
+    for (const [key, value] of Object.entries(group.vars)) {
+      root.style.setProperty(`--${key}`, value);
+    }
   }
 
   root.style.setProperty("--msg-size", pick(TEXT_SIZES, settings.textSize).value);
   root.style.setProperty("--leading-msg", pick(LINE_SPACINGS, settings.lineSpacing).value);
   root.style.setProperty("--code-size", pick(CODE_SIZES, settings.codeSize).value);
   root.style.setProperty("--thread-max", pick(WIDTHS, settings.width).value);
-  root.style.setProperty("--font-sans", pick(FACES, settings.uiFace).stack);
-  root.style.setProperty("--font-reading", pick(FACES, settings.readingFace).stack);
+  root.style.setProperty("--weight-body", pick(WEIGHTS, settings.bodyWeight).value);
+  root.style.setProperty("--tracking-body", pick(TRACKINGS, settings.tracking).value);
+  root.style.setProperty("--para-gap", pick(PARA_SPACINGS, settings.paraSpacing).value);
 
   root.dataset.mode = palette.dark ? "dark" : "light";
   root.dataset.motion = settings.reduceMotion ? "reduced" : "full";
@@ -303,4 +338,14 @@ export function applyTheme(settings, prefersDark = false) {
   // Mobile browser chrome matches the app instead of banding against it.
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", `rgb(${palette.vars.page.split(" ").join(", ")})`);
+}
+
+// Fonts are applied separately because they need the catalogue, and the
+// catalogue fetches a face the first time it's actually used.
+export function applyFonts({ uiFont, replyFont, codeFont }, catalogue) {
+  const root = document.documentElement;
+  root.style.setProperty("--font-sans", catalogue.fontById(uiFont, "geist").stack);
+  root.style.setProperty("--font-reading", catalogue.fontById(replyFont, "geist").stack);
+  root.style.setProperty("--font-mono", catalogue.fontById(codeFont, "geist-mono").stack);
+  catalogue.loadFonts([uiFont, replyFont, codeFont]);
 }

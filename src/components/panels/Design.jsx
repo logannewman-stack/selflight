@@ -1,23 +1,26 @@
-import React from "react";
-import { Check, RotateCcw } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Check, ClipboardPaste, Pencil, Plus, RotateCcw } from "lucide-react";
 import {
   ACCENTS,
   BUBBLE_STYLES,
   CODE_SIZES,
   CORNERS,
   DENSITIES,
-  FACES,
+  HEADING_SCALES,
   LINE_SPACINGS,
+  PARA_SPACINGS,
   SEND_KEYS,
   TEXT_SIZES,
-  THEMES,
+  TRACKINGS,
+  WEIGHTS,
   WIDTHS
 } from "../../lib/themes.js";
+import { MONO_FONTS, TEXT_FONTS, fontById, loadFonts } from "../../lib/fonts.js";
 import { DEFAULT_SETTINGS } from "../../lib/storage.js";
-import { Button, Choice, Section, Toggle } from "../ui.jsx";
+import { Area, Button, Choice, Section, Toggle } from "../ui.jsx";
 
-// Only the appearance keys reset — tone, instructions, and connectors are the
-// user's content, not styling, and shouldn't be wiped by a look-and-feel reset.
+// Only appearance keys reset — tone, instructions, and connectors are content,
+// not styling, and shouldn't be wiped by a look-and-feel reset.
 const APPEARANCE_KEYS = [
   "theme",
   "matchSystem",
@@ -28,10 +31,15 @@ const APPEARANCE_KEYS = [
   "width",
   "corners",
   "bubbles",
-  "uiFace",
-  "readingFace",
+  "uiFont",
+  "replyFont",
+  "codeFont",
   "textSize",
   "lineSpacing",
+  "bodyWeight",
+  "tracking",
+  "headingScale",
+  "paraSpacing",
   "reduceMotion",
   "codeSize",
   "codeWrap",
@@ -40,8 +48,18 @@ const APPEARANCE_KEYS = [
   "autoArtifacts"
 ];
 
-export default function Design({ settings, onSettings }) {
+export default function Design({
+  settings,
+  onSettings,
+  themes,
+  onEditPalette,
+  onNewPalette,
+  onImportPalette
+}) {
   const set = (key) => (value) => onSettings({ [key]: value });
+  const [importing, setImporting] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importError, setImportError] = useState(null);
 
   const chooseTheme = (theme) => {
     // With "match system" on, a palette claims the light or dark slot it
@@ -60,15 +78,22 @@ export default function Design({ settings, onSettings }) {
     return null;
   };
 
-  const reset = () => {
-    onSettings(Object.fromEntries(APPEARANCE_KEYS.map((k) => [k, DEFAULT_SETTINGS[k]])));
+  const runImport = () => {
+    const problem = onImportPalette(importText);
+    if (problem) return setImportError(problem);
+    setImportText("");
+    setImportError(null);
+    setImporting(false);
   };
+
+  const reset = () =>
+    onSettings(Object.fromEntries(APPEARANCE_KEYS.map((k) => [k, DEFAULT_SETTINGS[k]])));
 
   return (
     <div className="thin-scrollbar h-full overflow-y-auto">
       <Section
-        title="Colour"
-        hint="Different eyes and different rooms want different things. Pick whatever you can read longest without strain."
+        title="Colour packages"
+        hint="Pick one, or build your own from any of these and share it as a file."
       >
         <Toggle
           label="Match system"
@@ -78,40 +103,88 @@ export default function Design({ settings, onSettings }) {
         />
 
         <div className="space-y-2">
-          {THEMES.map((theme) => {
+          {themes.map((theme) => {
             const slot = slotFor(theme);
             return (
-              <button
+              <div
                 key={theme.id}
-                onClick={() => chooseTheme(theme)}
-                className={`flex w-full items-start gap-3 rounded-xl border bg-surface px-3 py-2.5 text-left transition-colors ${
+                className={`group flex items-start gap-2 rounded-xl border bg-surface px-3 py-2.5 transition-colors ${
                   slot ? "border-accent" : "border-line hover:border-soft"
                 }`}
               >
-                <span className="mt-0.5 flex shrink-0 overflow-hidden rounded-md ring-1 ring-line">
-                  {theme.swatch.map((colour) => (
-                    <span key={colour} className="h-5 w-3" style={{ background: colour }} />
-                  ))}
-                </span>
+                <button
+                  onClick={() => chooseTheme(theme)}
+                  className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                >
+                  <span className="mt-0.5 flex shrink-0 overflow-hidden rounded-md ring-1 ring-line">
+                    {theme.swatch.map((colour, i) => (
+                      <span key={`${colour}-${i}`} className="h-5 w-3" style={{ background: colour }} />
+                    ))}
+                  </span>
 
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-base font-medium">{theme.name}</span>
-                    {slot === "on" && <Check className="h-3.5 w-3.5 text-accent" strokeWidth={2.6} />}
-                    {(slot === "Light" || slot === "Dark") && (
-                      <span className="rounded-full bg-accent px-1.5 py-0.5 text-2xs font-bold uppercase text-page">
-                        {slot}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-base font-medium">{theme.name}</span>
+                      {slot === "on" && <Check className="h-3.5 w-3.5 text-accent" strokeWidth={2.6} />}
+                      {(slot === "Light" || slot === "Dark") && (
+                        <span className="rounded-full bg-accent px-1.5 py-0.5 text-2xs font-bold uppercase text-page">
+                          {slot}
+                        </span>
+                      )}
+                      {theme.custom && (
+                        <span className="rounded-full bg-line px-1.5 py-0.5 text-2xs font-bold uppercase text-muted">
+                          Yours
+                        </span>
+                      )}
+                    </span>
+                    {theme.note && (
+                      <span className="mt-0.5 block text-sm leading-relaxed text-muted">
+                        {theme.note}
                       </span>
                     )}
                   </span>
-                  <span className="mt-0.5 block text-sm leading-relaxed text-muted">
-                    {theme.note}
-                  </span>
-                </span>
-              </button>
+                </button>
+
+                <button
+                  onClick={() => onEditPalette(theme)}
+                  aria-label={theme.custom ? `Edit ${theme.name}` : `Duplicate ${theme.name}`}
+                  title={theme.custom ? "Edit" : "Duplicate and edit"}
+                  className="shrink-0 rounded-md p-1.5 text-soft opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover:opacity-100"
+                >
+                  <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
+              </div>
             );
           })}
         </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onNewPalette}>
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.4} />
+            New package
+          </Button>
+          <Button onClick={() => setImporting((v) => !v)}>
+            <ClipboardPaste className="h-3.5 w-3.5" strokeWidth={2.2} />
+            Import
+          </Button>
+        </div>
+
+        {importing && (
+          <div className="space-y-2.5 rounded-xl border border-line bg-surface p-3">
+            <Area
+              label="Paste a package"
+              rows={5}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder='{ "name": "Sunset", "vars": { "page": "#1b1016", "ink": "#f6e9de", … } }'
+              hint="Hex or “r g b” values both work, as does a bare map of colours."
+            />
+            {importError && <p className="text-sm text-accent">{importError}</p>}
+            <Button variant="solid" onClick={runImport} disabled={!importText.trim()}>
+              Import package
+            </Button>
+          </div>
+        )}
 
         <div>
           <p className="mb-2 text-base font-medium">Accent</p>
@@ -135,7 +208,79 @@ export default function Design({ settings, onSettings }) {
               );
             })}
           </div>
+          <p className="mt-1.5 text-sm text-muted">
+            Overrides a built-in palette's accent. Your own packages keep theirs.
+          </p>
         </div>
+      </Section>
+
+      <Section title="Typefaces" hint="Twenty-odd faces, fetched only when you choose one.">
+        <FontPicker
+          label="Interface"
+          value={settings.uiFont}
+          options={TEXT_FONTS}
+          fallback="geist"
+          onChange={set("uiFont")}
+        />
+        <FontPicker
+          label="Replies"
+          value={settings.replyFont}
+          options={TEXT_FONTS}
+          fallback="geist"
+          onChange={set("replyFont")}
+        />
+        <FontPicker
+          label="Code"
+          value={settings.codeFont}
+          options={MONO_FONTS}
+          fallback="geist-mono"
+          onChange={set("codeFont")}
+        />
+      </Section>
+
+      <Section title="Typography">
+        <Choice
+          label="Text size"
+          options={TEXT_SIZES}
+          value={settings.textSize}
+          onChange={set("textSize")}
+        />
+        <Choice
+          label="Weight"
+          options={WEIGHTS}
+          value={settings.bodyWeight}
+          onChange={set("bodyWeight")}
+        />
+        <Choice
+          label="Line spacing"
+          options={LINE_SPACINGS}
+          value={settings.lineSpacing}
+          onChange={set("lineSpacing")}
+        />
+        <Choice
+          label="Letter spacing"
+          options={TRACKINGS}
+          value={settings.tracking}
+          onChange={set("tracking")}
+        />
+        <Choice
+          label="Paragraph spacing"
+          options={PARA_SPACINGS}
+          value={settings.paraSpacing}
+          onChange={set("paraSpacing")}
+        />
+        <Choice
+          label="Heading size"
+          options={HEADING_SCALES}
+          value={settings.headingScale}
+          onChange={set("headingScale")}
+        />
+        <Toggle
+          label="Reduce motion"
+          hint="Removes fades and slides. Your system setting is honoured either way."
+          checked={settings.reduceMotion}
+          onChange={set("reduceMotion")}
+        />
       </Section>
 
       <Section title="Layout">
@@ -160,39 +305,6 @@ export default function Design({ settings, onSettings }) {
         />
       </Section>
 
-      <Section title="Type">
-        <FacePicker
-          label="Interface"
-          value={settings.uiFace}
-          onChange={set("uiFace")}
-          sample="Aa"
-        />
-        <FacePicker
-          label="Replies"
-          value={settings.readingFace}
-          onChange={set("readingFace")}
-          sample="Aa"
-        />
-        <Choice
-          label="Text size"
-          options={TEXT_SIZES}
-          value={settings.textSize}
-          onChange={set("textSize")}
-        />
-        <Choice
-          label="Line spacing"
-          options={LINE_SPACINGS}
-          value={settings.lineSpacing}
-          onChange={set("lineSpacing")}
-        />
-        <Toggle
-          label="Reduce motion"
-          hint="Removes fades and slides. Your system setting is honoured either way."
-          checked={settings.reduceMotion}
-          onChange={set("reduceMotion")}
-        />
-      </Section>
-
       <Section title="Code">
         <Choice
           label="Code size"
@@ -206,11 +318,7 @@ export default function Design({ settings, onSettings }) {
           checked={settings.codeWrap}
           onChange={set("codeWrap")}
         />
-        <Toggle
-          label="Line numbers"
-          checked={settings.lineNumbers}
-          onChange={set("lineNumbers")}
-        />
+        <Toggle label="Line numbers" checked={settings.lineNumbers} onChange={set("lineNumbers")} />
       </Section>
 
       <Section title="Behaviour">
@@ -234,37 +342,91 @@ export default function Design({ settings, onSettings }) {
           Reset appearance
         </Button>
         <p className="text-sm leading-relaxed text-muted">
-          Puts every setting on this panel back to its default. Your chats, instructions, and
-          connectors are untouched.
+          Puts every setting on this panel back to its default. Your chats, instructions, connectors,
+          and saved packages are untouched.
         </p>
       </Section>
     </div>
   );
 }
 
-function FacePicker({ label, value, onChange, sample }) {
+function FontPicker({ label, value, options, fallback, onChange }) {
+  const [open, setOpen] = useState(false);
+  const current = fontById(value, fallback);
+
+  // Specimens are only honest once the faces are here, so the whole catalogue
+  // loads when someone actually opens the list — not on first paint.
+  useEffect(() => {
+    if (open) loadFonts(options.map((o) => o.id));
+  }, [open, options]);
+
+  const groups = [...new Set(options.map((o) => o.group))];
+
   return (
     <div>
       <p className="mb-2 text-base font-medium">{label}</p>
-      <div className="grid grid-cols-3 gap-2">
-        {FACES.map((face) => {
-          const active = face.id === value;
-          return (
-            <button
-              key={face.id}
-              onClick={() => onChange(face.id)}
-              className={`rounded-xl border bg-surface px-2.5 py-2 text-left transition-colors ${
-                active ? "border-accent" : "border-line hover:border-soft"
-              }`}
-            >
-              <span className="block text-lg leading-none" style={{ fontFamily: face.stack }}>
-                {sample}
-              </span>
-              <span className="mt-1.5 block text-sm font-medium text-muted">{face.name}</span>
-            </button>
-          );
-        })}
-      </div>
+
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`flex w-full items-center gap-3 rounded-xl border bg-surface px-3 py-2.5 text-left transition-colors ${
+          open ? "border-accent" : "border-line hover:border-soft"
+        }`}
+      >
+        <span className="text-lg leading-none" style={{ fontFamily: current.stack }}>
+          Aa
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-base font-medium">{current.name}</span>
+          {current.note && <span className="block truncate text-sm text-muted">{current.note}</span>}
+        </span>
+        <span className="shrink-0 text-sm text-soft">{open ? "Close" : "Change"}</span>
+      </button>
+
+      {open && (
+        <div className="thin-scrollbar mt-2 max-h-[19rem] overflow-y-auto rounded-xl border border-line bg-surface">
+          {groups.map((group) => (
+            <div key={group}>
+              <p className="sticky top-0 bg-panel px-3 py-1.5 text-2xs font-bold uppercase text-soft">
+                {group}
+              </p>
+              {options
+                .filter((o) => o.group === group)
+                .map((option) => {
+                  const active = option.id === value;
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => {
+                        onChange(option.id);
+                        setOpen(false);
+                      }}
+                      className={`flex w-full items-baseline gap-3 px-3 py-2 text-left transition-colors hover:bg-panel ${
+                        active ? "bg-panel" : ""
+                      }`}
+                    >
+                      <span
+                        className="w-[5.5rem] shrink-0 truncate text-base"
+                        style={{ fontFamily: option.stack }}
+                      >
+                        {option.name}
+                      </span>
+                      <span
+                        className="min-w-0 flex-1 truncate text-sm text-muted"
+                        style={{ fontFamily: option.stack }}
+                      >
+                        {option.note || "Handgloves 0123"}
+                      </span>
+                      {active && (
+                        <Check className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={2.6} />
+                      )}
+                    </button>
+                  );
+                })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

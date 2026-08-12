@@ -24,6 +24,14 @@
   --leading-msg: 1.68;
   --code-size: 0.86em;
 
+  /* Typography knobs, also from the Design panel. */
+  --weight-body: 400;
+  --tracking-body: 0em;
+  --para-gap: 1em;
+  --h1: 1.22em;
+  --h2: 1.1em;
+  --h3: 1em;
+
   /* Overwritten immediately by applyTheme(); these keep the first paint sane. */
   --page: 252 251 249;
   --panel: 246 244 240;

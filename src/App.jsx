@@ -7,7 +7,16 @@ import RightPanel from "./components/RightPanel.jsx";
 import Build from "./components/panels/Build.jsx";
 import { generateTitle, streamChat } from "./lib/api.js";
 import { extractArtifacts } from "./lib/artifacts.js";
-import { applyTheme } from "./lib/themes.js";
+import { BUILT_IN_THEMES, applyFonts, applyTheme, resolvePalette } from "./lib/themes.js";
+import * as fontCatalogue from "./lib/fonts.js";
+import {
+  deletePalette,
+  draftFrom,
+  importPalette,
+  listPalettes,
+  refreshSwatch,
+  savePalette
+} from "./lib/palettes.js";
 import {
   addConnector,
   createChat,
@@ -44,6 +53,9 @@ export default function App() {
 
   const [settings, setSettings] = useState(() => loadSettings());
   const [connectors, setConnectors] = useState(() => listConnectors());
+  const [palettes, setPalettes] = useState(() => listPalettes());
+  // An unsaved palette being edited. While set, it previews over the real theme.
+  const [draft, setDraft] = useState(null);
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
@@ -66,10 +78,16 @@ export default function App() {
 
   const artifacts = useMemo(() => extractArtifacts(messages), [messages]);
 
+  const themes = useMemo(() => [...BUILT_IN_THEMES, ...palettes], [palettes]);
+
   useEffect(() => {
-    applyTheme(settings, prefersDark);
+    applyTheme(settings, { prefersDark, themes, override: draft });
     saveSettings(settings);
-  }, [settings, prefersDark]);
+  }, [settings, prefersDark, themes, draft]);
+
+  useEffect(() => {
+    applyFonts(settings, fontCatalogue);
+  }, [settings.uiFont, settings.replyFont, settings.codeFont]);
 
   // "Match system" needs the OS preference live, not only at first paint.
   useEffect(() => {
@@ -151,14 +169,21 @@ export default function App() {
   );
 
   const toggleSection = useCallback((next) => {
+    setDraft(null);
     setSection((current) => (current === next ? null : next));
     setDrawerOpen(false);
+  }, []);
+
+  const closePanel = useCallback(() => {
+    setDraft(null);
+    setSection(null);
   }, []);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") {
         setDrawerOpen(false);
+        setDraft(null);
         setSection(null);
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -259,6 +284,80 @@ export default function App() {
     const base = [...messages];
     while (base.length && base[base.length - 1].role !== "user") base.pop();
     if (base.length) runTurn(base, chatIdRef.current);
+  };
+
+  const selectPalette = (saved) =>
+    setSettings((s) =>
+      s.matchSystem
+        ? { ...s, [saved.dark ? "darkTheme" : "lightTheme"]: saved.id }
+        : { ...s, theme: saved.id }
+    );
+
+  const paletteApi = {
+    draft,
+    existing: draft ? palettes.some((p) => p.id === draft.id) : false,
+
+    create: () => {
+      setDraft(refreshSwatch(draftFrom(resolvePalette(settings, prefersDark, themes), "My palette")));
+      setSection("palette");
+    },
+
+    // Editing one of your own packages edits it in place; a built-in is
+    // duplicated instead, so the presets stay intact.
+    edit: (theme) => {
+      setDraft(
+        theme.custom
+          ? { ...theme, vars: { ...theme.vars } }
+          : refreshSwatch(draftFrom(theme, `${theme.name} copy`))
+      );
+      setSection("palette");
+    },
+
+    change: (next) => setDraft(refreshSwatch(next)),
+
+    // Reload every colour from a chosen palette, keeping the draft's identity.
+    rebase: (base) =>
+      setDraft((d) => refreshSwatch({ ...d, vars: { ...base.vars }, dark: base.dark })),
+
+    save: () => {
+      const saved = savePalette(refreshSwatch(draft));
+      setPalettes(listPalettes());
+      setDraft(null);
+      selectPalette(saved);
+      setSection("design");
+    },
+
+    cancel: () => {
+      setDraft(null);
+      setSection("design");
+    },
+
+    remove: () => {
+      const id = draft.id;
+      deletePalette(id);
+      setPalettes(listPalettes());
+      setDraft(null);
+      // Anything still pointing at the deleted package falls back to a built-in.
+      setSettings((s) => ({
+        ...s,
+        theme: s.theme === id ? "paper" : s.theme,
+        lightTheme: s.lightTheme === id ? "paper" : s.lightTheme,
+        darkTheme: s.darkTheme === id ? "midnight" : s.darkTheme
+      }));
+      setSection("design");
+    },
+
+    import: (text) => {
+      try {
+        const imported = importPalette(text, resolvePalette(settings, prefersDark, themes));
+        const saved = savePalette(imported);
+        setPalettes(listPalettes());
+        selectPalette(saved);
+        return null;
+      } catch (err) {
+        return err.message;
+      }
+    }
   };
 
   const connectorApi = {
@@ -469,11 +568,13 @@ export default function App() {
         <div className="fixed inset-0 z-50 bg-page md:static md:z-auto md:shrink-0">
           <RightPanel
             section={section}
-            onClose={() => setSection(null)}
+            onClose={closePanel}
             artifacts={artifacts}
             settings={settings}
             onSettings={updateSettings}
             connectors={connectorApi}
+            themes={themes}
+            palette={paletteApi}
           />
         </div>
       )}

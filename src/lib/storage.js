@@ -85,11 +85,16 @@ export const DEFAULT_SETTINGS = {
   corners: "soft",
   bubbles: "bubble",
 
-  // Reading
-  uiFace: "geist",
-  readingFace: "geist",
+  // Type — ids from src/lib/fonts.js
+  uiFont: "geist",
+  replyFont: "geist",
+  codeFont: "geist-mono",
   textSize: "md",
   lineSpacing: "normal",
+  bodyWeight: "regular",
+  tracking: "normal",
+  headingScale: "normal",
+  paraSpacing: "normal",
   reduceMotion: false,
 
   // Code
@@ -114,8 +119,19 @@ export const DEFAULT_SETTINGS = {
   webFetch: true
 };
 
+// Earlier builds stored a three-way typeface choice; map it onto the font
+// catalogue so an existing browser doesn't silently lose its selection.
+const FACE_TO_FONT = { geist: "geist", serif: "source-serif", system: "system" };
+
 export function loadSettings() {
-  return { ...DEFAULT_SETTINGS, ...load(SETTINGS, {}) };
+  const stored = load(SETTINGS, {}) || {};
+  const merged = { ...DEFAULT_SETTINGS, ...stored };
+
+  if (stored.uiFace && !stored.uiFont) merged.uiFont = FACE_TO_FONT[stored.uiFace] || "geist";
+  if (stored.readingFace && !stored.replyFont) {
+    merged.replyFont = FACE_TO_FONT[stored.readingFace] || "geist";
+  }
+  return merged;
 }
 
 export function saveSettings(settings) {
