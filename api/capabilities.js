@@ -5,6 +5,7 @@
 // key, no account, no session needed — it's the same answer for everyone.
 
 import { provider } from "./provider.js";
+import { configured as canTranscribe } from "./transcribe.js";
 
 export default async function handler(req, res) {
   const model = provider();
@@ -22,7 +23,10 @@ export default async function handler(req, res) {
       // Perplexity's API has no MCP equivalent, and its models search on their
       // own rather than through a tool the interface can switch off.
       connectors: model.name !== "Perplexity",
-      searchAlwaysOn: model.name === "Perplexity"
+      searchAlwaysOn: model.name === "Perplexity",
+      // Whether a browser with no speech recognition of its own can still
+      // dictate, by sending audio here.
+      transcribe: canTranscribe()
     })
   );
 }

@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- A tab strip is light or dark depending on the OS, and a favicon can't
-       inherit anything, so it carries its own two-colour rule. -->
-  <style>
-    path { fill: #B95830 }
-    @media (prefers-color-scheme: dark) { path { fill: #DE8A63 } }
-  </style>
-  <path fill-rule="evenodd" d="M16 2.6c3.4 5.4 8 8.6 8 14.4a8 8 0 0 1-16 0c0-5.8 4.6-9 8-14.4ZM16 14.6c1.5 2.4 3.5 3.8 3.5 6.3a3.5 3.5 0 0 1-7 0c0-2.5 2-3.9 3.5-6.3Z"/>
+  <!-- The app icon keeps its own black ground rather than following the tab
+       strip, the way an installed icon does. -->
+  <rect width="32" height="32" rx="7" fill="#0A0A0B"/>
+  <g fill="none" stroke="#FFFFFF">
+    <circle cx="16" cy="16" r="10.9" stroke-width="1.9"/>
+    <path d="M19.9 10.3C19.9 15.6 12.3 16.5 12.3 21.8" stroke-width="2.4" stroke-linecap="round"/>
+  </g>
 </svg>

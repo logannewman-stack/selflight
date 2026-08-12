@@ -66,6 +66,7 @@ folder on its own. Then **Project → Settings → Environment Variables**:
 | Variable | |
 | --- | --- |
 | `PERPLEXITY_API_KEY` | Required — or `ANTHROPIC_API_KEY` for Claude instead. |
+| `TRANSCRIBE_API_KEY` | Optional. Dictation in Firefox, which has no speech recognition of its own. |
 | `VITE_SUPABASE_URL` | For accounts. |
 | `VITE_SUPABASE_ANON_KEY` | For accounts. Public by design. |
 | `SUPABASE_SERVICE_ROLE_KEY` | For accounts. Server only — never prefix it with `VITE_`. |
@@ -79,10 +80,13 @@ variable added after a build isn't in it.
 **Chat** with streaming replies, markdown, auto-generated titles, and history that
 survives a refresh.
 
-**Dictation.** The microphone in the composer turns speech into text as you talk, using
-the browser's own recognition — no API key and nothing per-minute. Words appear live and
-land in the message box to edit before sending, rather than being fired off. Chrome, Edge
-and Safari have it; Firefox doesn't, so the button is hidden there instead of failing.
+**Dictation.** The microphone in the composer turns speech into text. Chrome, Edge and
+Safari recognise it in the browser — free, and words appear live as you talk. Firefox has
+no speech recognition at all, so it records instead and posts the audio to
+`/api/transcribe`, which needs a `TRANSCRIBE_API_KEY` (Whisper is about $0.006 a minute;
+Groq's is a fraction of that). Set one and dictation works for everybody; leave it unset
+and the button simply doesn't appear in Firefox rather than failing there. Either way the
+text lands in the message box to edit before sending.
 
 **Web search** is on by default, and on Perplexity it's how answers get written at
 all — the sources each reply used are listed underneath it, collapsed past four.
@@ -148,6 +152,12 @@ Two things make it usable rather than fiddly:
 
 A package is plain JSON. Copy it, download it, or paste someone else's into **Import**;
 hex and `"r g b"` both work, as does a bare map of colours.
+
+**Naming.** The interface calls the assistant **Selflight 6.0** — in the header, and under
+the wordmark on an empty chat. That's deliberately not the model's name: the product is
+Selflight whichever provider is answering, and nobody should have to learn what
+`sonar-reasoning-pro` is to understand what they're talking to. It lives in
+`src/lib/brand.js`; bump `MODE` when the behaviour changes enough that someone would notice.
 
 ## Design system
 
@@ -269,6 +279,7 @@ app's queries name actually exists. 32 assertions and a schema cross-check; deta
 | `api/_supabase.js` | Service-role client, session verification, connector lookup, the spend cap. |
 | `api/connectors.js` | The only route a connector token passes through. |
 | `api/capabilities.js` | What this deployment's model can do, so the interface stops offering the rest. |
+| `api/transcribe.js` | Audio in, words out, for browsers that can't do it themselves. |
 | `src/App.jsx` | Layout, chat state, auth, and the send/stream/retry cycle. |
 | `src/lib/api.js` | Browser side of the stream. |
 | `src/lib/store.js` | One data interface over two backings — this browser, or Postgres. Nothing above it knows which. |

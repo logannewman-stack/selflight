@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowUp, Globe, Link2, Mic, Square } from "lucide-react";
-import { dictate, supported as canDictate } from "../lib/dictation.js";
+import { ArrowUp, Globe, Link2, Loader2, Mic, Square } from "lucide-react";
+import { canRecord, dictate, record, supported as canListen } from "../lib/dictation.js";
+import { accessToken } from "../lib/supabase.js";
 
 // Speech arrives without leading spaces, so appending it to typed text needs
 // one adding — but not after an open bracket or a newline, and not before
@@ -21,11 +22,20 @@ export default function Composer({
   streaming,
   settings,
   connectorCount,
+  canTranscribe,
   focusSignal
 }) {
   const ref = useRef(null);
 
+  // Two ways to dictate. The browser's own recognition is free and shows words
+  // as they're said, so it wins wherever it exists. Recording and sending the
+  // audio is the fallback that makes this work in Firefox at all.
+  const live = canListen;
+  const viaServer = !live && canRecord && canTranscribe;
+  const micAvailable = live || viaServer;
+
   const [listening, setListening] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [heard, setHeard] = useState("");
   const [micError, setMicError] = useState(null);
   const sessionRef = useRef(null);
@@ -33,14 +43,48 @@ export default function Composer({
   // rather than replacing a half-written message.
   const baseRef = useRef("");
 
-  const stopDictation = () => {
-    sessionRef.current?.stop();
+  const stopDictation = async () => {
+    const session = sessionRef.current;
     sessionRef.current = null;
     setListening(false);
     setHeard("");
+    if (!session) return;
+
+    // The live path is done the moment it stops. The recording path has to send
+    // the audio somewhere and wait, so the button keeps a state to show for it.
+    const result = session.stop();
+    if (!result?.then) return;
+
+    try {
+      const text = await result;
+      if (text) onChange(join(baseRef.current, text));
+    } catch (err) {
+      setMicError(err.message);
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const startRecording = async () => {
+    setMicError(null);
+    baseRef.current = value;
+
+    try {
+      const token = await accessToken();
+      const session = await record({
+        authHeader: token ? `Bearer ${token}` : null,
+        onState: (state) => setTranscribing(state === "transcribing")
+      });
+      sessionRef.current = session;
+      setListening(true);
+    } catch (err) {
+      setMicError(err.message);
+    }
   };
 
   const startDictation = () => {
+    if (viaServer) return startRecording();
+
     setMicError(null);
     baseRef.current = value;
 
@@ -74,8 +118,15 @@ export default function Composer({
   };
 
   // A dictation left running after the composer goes away would keep the
-  // microphone open with nothing to show for it.
-  useEffect(() => () => sessionRef.current?.stop(), []);
+  // microphone open with nothing to show for it. cancel() where it exists, so a
+  // recording being abandoned doesn't also pay to transcribe itself.
+  useEffect(
+    () => () => {
+      const session = sessionRef.current;
+      session?.cancel ? session.cancel() : session?.stop();
+    },
+    []
+  );
 
   // Sending finishes the thought; the mic shouldn't stay on for the next one.
   const send = () => {
@@ -133,21 +184,24 @@ export default function Composer({
             style={{ fontSize: "var(--msg-size)" }}
           />
 
-          {/* Hidden entirely where the browser can't do it, rather than shown
+          {/* Hidden entirely where neither path is possible, rather than shown
               and then apologising. */}
-          {canDictate && !streaming && (
+          {micAvailable && !streaming && (
             <button
               onClick={listening ? stopDictation : startDictation}
+              disabled={transcribing}
               aria-label={listening ? "Stop dictating" : "Dictate a message"}
               aria-pressed={listening}
               title={listening ? "Stop dictating" : "Dictate a message"}
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                listening
-                  ? "bg-accent text-page"
-                  : "text-muted hover:bg-panel hover:text-ink"
-              }`}
+                listening ? "bg-accent text-page" : "text-muted hover:bg-panel hover:text-ink"
+              } disabled:opacity-40`}
             >
-              <Mic className={`h-4 w-4 ${listening ? "animate-pulse" : ""}`} strokeWidth={2} />
+              {transcribing ? (
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+              ) : (
+                <Mic className={`h-4 w-4 ${listening ? "animate-pulse" : ""}`} strokeWidth={2} />
+              )}
             </button>
           )}
 
@@ -180,10 +234,16 @@ export default function Composer({
         <div className="mt-2 flex items-center justify-center gap-3 text-xs text-soft">
           {/* While dictating, this line is the only feedback that the words are
               landing — so it replaces the usual footer rather than crowding it. */}
-          {listening ? (
+          {transcribing ? (
+            <span className="text-muted">Writing that down…</span>
+          ) : listening ? (
             <span className="flex items-center gap-1.5 text-accent">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-              {heard ? "Listening…" : "Listening — start speaking"}
+              {viaServer
+                ? "Recording — press the microphone again when you're done"
+                : heard
+                  ? "Listening…"
+                  : "Listening — start speaking"}
             </span>
           ) : (
             <>

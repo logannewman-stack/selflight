@@ -1,15 +1,14 @@
 import React from "react";
 
-// A single small light you carry. It's the one mark that means the name rather
-// than gesturing at it, and it's warm in the same way the default palette is.
+// A ring with a swash through it.
 //
-// Drawn as one path with an evenodd hole rather than two stacked shapes, so the
-// inner flame is genuinely transparent. That matters because the mark sits on
-// the page, the sidebar, and a dark sign-in screen — a second shape would have
-// to guess which of those it was on, and be wrong somewhere.
-const FLAME =
-  "M16 2.6c3.4 5.4 8 8.6 8 14.4a8 8 0 0 1-16 0c0-5.8 4.6-9 8-14.4Z" +
-  "M16 14.6c1.5 2.4 3.5 3.8 3.5 6.3a3.5 3.5 0 0 1-7 0c0-2.5 2-3.9 3.5-6.3Z";
+// Both strokes are `currentColor` rather than fixed, so the mark takes the
+// colour of whatever it sits in — the sidebar, a dark sign-in screen, or a
+// palette somebody tinted themselves. The swash is set slightly heavier than
+// the ring: equal weights read as a slash, and the difference is what keeps it
+// a mark at small sizes.
+const RING = { r: 10.9, width: 1.9 };
+const SWASH = { d: "M19.9 10.3C19.9 15.6 12.3 16.5 12.3 21.8", width: 2.4 };
 
 export function Mark({ size = 24, className = "" }) {
   return (
@@ -20,20 +19,22 @@ export function Mark({ size = 24, className = "" }) {
       className={className}
       role="img"
       aria-label="Selflight"
-      fill="currentColor"
+      fill="none"
+      stroke="currentColor"
     >
-      <path fillRule="evenodd" clipRule="evenodd" d={FLAME} />
+      <circle cx="16" cy="16" r={RING.r} strokeWidth={RING.width} />
+      <path d={SWASH.d} strokeWidth={SWASH.width} strokeLinecap="round" />
     </svg>
   );
 }
 
-// The mark plus the name. `text-accent` on the mark and the palette's ink on the
-// word, which is what keeps the lockup readable on every theme including one
-// the person tinted themselves.
+// The mark plus the name, both in the palette's ink. The mark is monochrome by
+// design, so it stays the text colour rather than picking up the accent —
+// swap `text-ink` for `text-accent` below if you'd rather it carried the colour.
 export default function Logo({ size = 24, className = "", markClassName = "" }) {
   return (
     <span className={`flex items-center gap-2 ${className}`}>
-      <Mark size={size} className={`shrink-0 text-accent ${markClassName}`} />
+      <Mark size={size} className={`shrink-0 text-ink ${markClassName}`} />
       <span
         className="font-serif font-medium tracking-[-0.012em]"
         style={{ fontSize: `${Math.round(size * 0.86)}px` }}

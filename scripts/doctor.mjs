@@ -158,6 +158,23 @@ async function checkPerplexity() {
   }
 }
 
+/* ------------------------------- dictation ------------------------------- */
+
+function checkDictation() {
+  section("Dictation");
+
+  // Chrome, Edge and Safari do this in the browser for nothing. This key is
+  // only what lets Firefox join in.
+  if (!env("TRANSCRIBE_API_KEY")) {
+    skip("No TRANSCRIBE_API_KEY — dictation works in Chrome, Edge and Safari, but not Firefox.");
+    skip("Set one to cover every browser. See .env.example.");
+    return;
+  }
+
+  const base = env("TRANSCRIBE_BASE_URL") || "https://api.openai.com/v1";
+  ok("Dictation covers every browser", `${env("TRANSCRIBE_MODEL") || "whisper-1"} via ${base}`);
+}
+
 /* -------------------------------- Supabase ------------------------------- */
 
 const TABLES = [
@@ -378,6 +395,7 @@ async function checkDeployment(base) {
 console.log(c.bold("\nSelflight · checking the stack"));
 
 await checkPerplexity();
+checkDictation();
 await checkSupabase();
 if (target) await checkDeployment(target);
 

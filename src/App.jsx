@@ -13,6 +13,7 @@ import { extractArtifacts } from "./lib/artifacts.js";
 import { BUILT_IN_THEMES, applyFonts, applyTheme, resolvePalette } from "./lib/themes.js";
 import * as fontCatalogue from "./lib/fonts.js";
 import { draftFrom, importPalette, refreshSwatch } from "./lib/palettes.js";
+import { modeLabel } from "./lib/brand.js";
 import { fallbackTitle, loadSettings } from "./lib/storage.js";
 import { storeFor } from "./lib/store.js";
 import { hasSupabase, supabase } from "./lib/supabase.js";
@@ -561,6 +562,18 @@ export default function App() {
             {mode === "code" ? "Code" : activeTitle || "New chat"}
           </span>
 
+          {/* Which Selflight is answering. It's a button because the thing you
+              want after reading it is usually to change it. */}
+          {mode !== "code" && (
+            <button
+              onClick={() => toggleSection("settings", "assistant")}
+              title="Thinking depth and tone"
+              className="hidden shrink-0 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-soft hover:text-ink sm:block"
+            >
+              {modeLabel(settings)}
+            </button>
+          )}
+
           <button
             onClick={newChat}
             aria-label="New chat"
@@ -583,6 +596,7 @@ export default function App() {
                 {messages.length === 0 ? (
                   <div className="pt-[11vh]">
                     <Logo size={32} />
+                    <p className="mt-1 text-sm font-medium text-soft">{modeLabel(settings)}</p>
                     <p className="mt-1.5 text-md text-muted">
                       {settings.callMe ? `What are you working on, ${settings.callMe}?` : "What are you working on?"}
                     </p>
@@ -666,6 +680,7 @@ export default function App() {
                 streaming={streaming}
                 settings={settings}
                 connectorCount={enabledConnectors}
+                canTranscribe={can.transcribe}
                 focusSignal={focusSignal}
               />
             </div>

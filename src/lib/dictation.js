@@ -88,3 +88,99 @@ export function dictate({ lang, onText, onEnd, onError } = {}) {
     }
   };
 }
+
+/* --------------------------- the other half ----------------------------- */
+
+// Firefox has no speech recognition at all, and some browsers only offer it
+// behind a flag. There, the microphone is recorded and the audio sent to
+// /api/transcribe — slower, because nothing appears until you stop talking, but
+// it means dictation isn't a Chrome-only feature.
+
+export const canRecord =
+  typeof navigator !== "undefined" &&
+  Boolean(navigator.mediaDevices?.getUserMedia) &&
+  typeof MediaRecorder !== "undefined";
+
+// Whatever this browser will actually produce. Safari records mp4, everything
+// else webm/opus; both are formats the transcription services accept.
+function pickMimeType() {
+  const candidates = [
+    "audio/webm;codecs=opus",
+    "audio/webm",
+    "audio/mp4",
+    "audio/ogg;codecs=opus"
+  ];
+  return candidates.find((type) => MediaRecorder.isTypeSupported?.(type)) || "";
+}
+
+// Recording has no natural end, and a microphone left on is both a privacy
+// problem and a bill. Two minutes is longer than anyone dictates in one go.
+const MAX_MS = 120_000;
+
+/**
+ * Records until stop() is called, then resolves the transcript.
+ *
+ * onState reports "recording" then "transcribing", because the gap between
+ * pressing stop and seeing words is long enough to need explaining.
+ */
+export async function record({ onState, authHeader } = {}) {
+  if (!canRecord) throw new Error("This browser can't record audio.");
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    throw new Error(
+      err?.name === "NotAllowedError"
+        ? "Microphone access was blocked. Allow it in your browser's address bar and try again."
+        : "No microphone found. Check one is plugged in and selected."
+    );
+  }
+
+  const mimeType = pickMimeType();
+  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+  const chunks = [];
+
+  recorder.ondataavailable = (event) => event.data.size && chunks.push(event.data);
+  recorder.start();
+  onState?.("recording");
+
+  const finished = new Promise((resolve) => (recorder.onstop = resolve));
+  const timer = setTimeout(() => recorder.state !== "inactive" && recorder.stop(), MAX_MS);
+
+  const done = (async () => {
+    await finished;
+    clearTimeout(timer);
+    // Releasing the tracks is what turns off the browser's recording indicator.
+    // Skipping it leaves a light on with nothing behind it.
+    stream.getTracks().forEach((track) => track.stop());
+
+    const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+    if (blob.size < 1200) return ""; // Too short to be speech.
+
+    onState?.("transcribing");
+
+    const res = await fetch("/api/transcribe", {
+      method: "POST",
+      headers: { "Content-Type": blob.type, ...(authHeader ? { Authorization: authHeader } : {}) },
+      body: blob
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || "Couldn't transcribe that.");
+    return data?.text || "";
+  })();
+
+  return {
+    stop() {
+      if (recorder.state !== "inactive") recorder.stop();
+      return done;
+    },
+    cancel() {
+      clearTimeout(timer);
+      chunks.length = 0;
+      if (recorder.state !== "inactive") recorder.stop();
+      stream.getTracks().forEach((track) => track.stop());
+    }
+  };
+}
