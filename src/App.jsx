@@ -585,18 +585,6 @@ export default function App() {
             {mode === "code" ? "Code" : activeTitle || "New chat"}
           </span>
 
-          {/* Which Selflight is answering. It's a button because the thing you
-              want after reading it is usually to change it. */}
-          {mode !== "code" && (
-            <button
-              onClick={() => toggleSection("settings", "assistant")}
-              title="Thinking depth and tone"
-              className="hidden shrink-0 rounded-full border border-line px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-soft hover:text-ink sm:block"
-            >
-              {modeLabel(settings)}
-            </button>
-          )}
-
           <button
             onClick={newChat}
             aria-label="New chat"
@@ -707,6 +695,7 @@ export default function App() {
                 onStop={stop}
                 streaming={streaming}
                 settings={settings}
+                onSettings={updateSettings}
                 connectorCount={enabledConnectors}
                 canTranscribe={can.transcribe}
                 focusSignal={focusSignal}

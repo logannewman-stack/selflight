@@ -78,7 +78,10 @@ variable added after a build isn't in it.
 ## What's in it
 
 **Chat** with streaming replies, markdown, auto-generated titles, and history that
-survives a refresh.
+survives a refresh. The bar under the composer carries the controls worth having in reach
+while you type: web search on or off, and **Iris 6.0** with its effort setting — Quick,
+Balanced or Deep, each showing roughly what a message costs, because that's the setting
+that decides the bill.
 
 **Dictation.** The microphone in the composer turns speech into text. Chrome, Edge and
 Safari recognise it in the browser — free, and words appear live as you talk. Firefox has
@@ -165,11 +168,10 @@ Two things make it usable rather than fiddly:
 A package is plain JSON. Copy it, download it, or paste someone else's into **Import**;
 hex and `"r g b"` both work, as does a bare map of colours.
 
-**Naming.** The interface calls the assistant **Selflight 6.0** — in the header, and under
-the wordmark on an empty chat. That's deliberately not the model's name: the product is
-Selflight whichever provider is answering, and nobody should have to learn what
-`sonar-reasoning-pro` is to understand what they're talking to. It lives in
-`src/lib/brand.js`; bump `MODE` when the behaviour changes enough that someone would notice.
+**Naming.** Selflight is the product and the assistant; **Iris 6.0** is what it runs on. The
+same split as an app and its model, so the version can move without renaming the product
+every time it improves — and so nobody has to learn what `sonar-reasoning-pro` is to
+understand what they're talking to. Both live in `src/lib/brand.js`.
 
 ## Design system
 

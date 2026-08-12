@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowUp, Globe, Link2, Loader2, Mic, Square } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Globe, Link2, Loader2, Mic, Square } from "lucide-react";
 import { canRecord, dictate, record, supported as canListen } from "../lib/dictation.js";
 import { accessToken } from "../lib/supabase.js";
+import { EFFORTS, MODE, effortFor } from "../lib/brand.js";
 
 // Speech arrives without leading spaces, so appending it to typed text needs
 // one adding — but not after an open bracket or a newline, and not before
@@ -21,6 +22,7 @@ export default function Composer({
   onStop,
   streaming,
   settings,
+  onSettings,
   connectorCount,
   canTranscribe,
   focusSignal
@@ -231,39 +233,137 @@ export default function Composer({
           </p>
         )}
 
-        <div className="mt-2 flex items-center justify-center gap-3 text-xs text-soft">
-          {/* While dictating, this line is the only feedback that the words are
-              landing — so it replaces the usual footer rather than crowding it. */}
-          {transcribing ? (
-            <span className="text-muted">Writing that down…</span>
-          ) : listening ? (
-            <span className="flex items-center gap-1.5 text-accent">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-              {viaServer
-                ? "Recording — press the microphone again when you're done"
-                : heard
-                  ? "Listening…"
-                  : "Listening — start speaking"}
+        {/* While dictating, this is the only feedback that the words are
+            landing, so it takes the whole line rather than crowding the bar. */}
+        {transcribing || listening ? (
+          <p className="mt-2 text-center text-xs text-soft">
+            {transcribing ? (
+              <span className="text-muted">Writing that down…</span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-accent">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                {viaServer
+                  ? "Recording — press the microphone again when you're done"
+                  : heard
+                    ? "Listening…"
+                    : "Listening — start speaking"}
+              </span>
+            )}
+          </p>
+        ) : (
+          <div className="mt-2 flex items-center gap-2 text-xs text-soft">
+            <button
+              onClick={() => onSettings({ webSearch: !settings.webSearch })}
+              title={settings.webSearch ? "Turn web search off" : "Turn web search on"}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 transition-colors ${
+                settings.webSearch
+                  ? "border-line text-muted hover:border-soft hover:text-ink"
+                  : "border-transparent text-soft hover:text-muted"
+              }`}
+            >
+              <Globe className="h-3 w-3" strokeWidth={2} />
+              Web {settings.webSearch ? "on" : "off"}
+            </button>
+
+            {connectorCount > 0 && (
+              <span className="flex shrink-0 items-center gap-1.5 text-soft">
+                <Link2 className="h-3 w-3" strokeWidth={2} />
+                {connectorCount}
+              </span>
+            )}
+
+            {/* The caveat still belongs here, but it's the least important
+                thing on the row now, so it yields first when space runs out. */}
+            <span className="hidden min-w-0 flex-1 truncate px-2 text-center lg:block">
+              Selflight can be wrong. Check anything that matters.
             </span>
-          ) : (
-            <>
-              {settings.webSearch && (
-                <span className="flex items-center gap-1">
-                  <Globe className="h-3 w-3" strokeWidth={2} />
-                  Web on
-                </span>
-              )}
-              {connectorCount > 0 && (
-                <span className="flex items-center gap-1">
-                  <Link2 className="h-3 w-3" strokeWidth={2} />
-                  {connectorCount} connector{connectorCount === 1 ? "" : "s"}
-                </span>
-              )}
-              <span>Selflight can be wrong. Check anything that matters.</span>
-            </>
-          )}
-        </div>
+            <span className="flex-1 lg:hidden" />
+
+            <EffortPicker settings={settings} onSettings={onSettings} />
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+// The model and how hard it's working, at the edge of the composer where you
+// can see it while typing and change it without leaving the conversation.
+function EffortPicker({ settings, onSettings }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef(null);
+  const current = effortFor(settings);
+
+  // Any click outside, or Escape, closes it — a menu you can only dismiss by
+  // choosing something is a trap.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e) => !wrap.current?.contains(e.target) && setOpen(false);
+    const key = (e) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", key);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrap} className="relative shrink-0">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title="Effort"
+        className="flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 font-medium text-muted transition-colors hover:border-soft hover:text-ink"
+      >
+        <span>{MODE}</span>
+        <span className="text-soft">{current.name}</span>
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} strokeWidth={2.2} />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="rise absolute bottom-full right-0 z-20 mb-2 w-[17rem] overflow-hidden rounded-xl border border-line bg-raised shadow-lg"
+        >
+          <p className="border-b border-line px-3 py-2 text-2xs font-semibold uppercase tracking-[0.1em] text-soft">
+            {MODE} · effort
+          </p>
+
+          {EFFORTS.map((effort) => {
+            const active = effort.id === current.id;
+            return (
+              <button
+                key={effort.id}
+                role="menuitemradio"
+                aria-checked={active}
+                onClick={() => {
+                  onSettings({ depth: effort.id });
+                  setOpen(false);
+                }}
+                className={`flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors ${
+                  active ? "bg-panel" : "hover:bg-panel/60"
+                }`}
+              >
+                <Check
+                  className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${active ? "text-accent" : "opacity-0"}`}
+                  strokeWidth={2.6}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="text-base font-medium text-ink">{effort.name}</span>
+                    {/* The number that makes this a real choice rather than a
+                        vague "more is better". */}
+                    <span className="shrink-0 text-2xs text-soft">{effort.cost}</span>
+                  </span>
+                  <span className="mt-0.5 block text-sm leading-snug text-muted">{effort.note}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
