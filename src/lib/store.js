@@ -55,7 +55,15 @@ const localStore = {
 
   chats: {
     async list() {
-      return local.listChats().map(({ id, title, updatedAt }) => ({ id, title, updatedAt }));
+      return local
+        .listChats()
+        .map(({ id, title, updatedAt, pinned }) => ({ id, title, updatedAt, pinned: Boolean(pinned) }));
+    },
+    async search(query) {
+      return local.searchMessages(query);
+    },
+    async setPinned(id, pinned) {
+      local.setPinned(id, pinned);
     },
     async messages(id) {
       return local.listChats().find((c) => c.id === id)?.messages || [];
@@ -147,15 +155,63 @@ function remoteStore(user) {
       async list() {
         const { data, error } = await supabase
           .from("chats")
-          .select("id, title, updated_at")
+          .select("id, title, updated_at, pinned")
+          // Pinned first, then most recent — matching the local store, so the
+          // sidebar doesn't reshuffle when somebody signs in.
+          .order("pinned", { ascending: false })
           .order("updated_at", { ascending: false })
           .limit(200);
         fail("loading chats", error);
         return (data || []).map((row) => ({
           id: row.id,
           title: row.title,
+          pinned: Boolean(row.pinned),
           updatedAt: new Date(row.updated_at).getTime()
         }));
+      },
+
+      /**
+       * Finds a phrase inside conversations, using the generated tsvector from
+       * 0006_chats.sql rather than a LIKE scan — fine for a hundred messages,
+       * unusable at a hundred thousand, and painful to retrofit under traffic.
+       *
+       * One hit per chat: six rows from the same conversation would bury the
+       * five other conversations that also matched.
+       */
+      async search(query) {
+        const needle = String(query || "").trim();
+        if (needle.length < 2) return [];
+
+        const { data, error } = await supabase
+          .from("messages")
+          .select("chat_id, content, role, chats!inner(title)")
+          .textSearch("search", needle, { type: "websearch", config: "english" })
+          .limit(60);
+
+        if (error) {
+          fail("searching conversations", error);
+          return [];
+        }
+
+        const seen = new Set();
+        const hits = [];
+        for (const row of data || []) {
+          if (seen.has(row.chat_id)) continue;
+          seen.add(row.chat_id);
+          hits.push({
+            chatId: row.chat_id,
+            title: row.chats?.title || "Untitled",
+            snippet: row.content,
+            role: row.role
+          });
+        }
+        return hits;
+      },
+
+      async setPinned(id, pinned) {
+        if (String(id).startsWith("pending-")) return;
+        const { error } = await supabase.from("chats").update({ pinned }).eq("id", id);
+        fail("pinning a chat", error);
       },
 
       async messages(id) {

@@ -51,11 +51,16 @@ create table if not exists public.chats (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   title text not null default 'New chat',
+  -- Ordered ahead of updated_at in the sidebar, so a pinned chat stays at the
+  -- top however long ago it was last touched.
+  pinned boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists chats_user_idx on public.chats (user_id, updated_at desc);
+create index if not exists chats_user_pinned_idx
+  on public.chats (user_id, pinned desc, updated_at desc);
 
 -- Keyed by position rather than an identity column, because the client holds the
 -- authoritative thread: regenerating a reply replaces turn 5 rather than adding
@@ -79,9 +84,18 @@ create table if not exists public.messages (
   -- A failed turn is kept so the thread still shows what happened, but it is
   -- never replayed to the model.
   error boolean not null default false,
+  -- Full text, not `ilike '%…%'`. A LIKE scan is fine for a hundred messages
+  -- and unusable at a hundred thousand. Generated rather than maintained by a
+  -- trigger, so it can never drift from the content it indexes.
+  search tsvector generated always as (to_tsvector('english', coalesce(content, ''))) stored,
   created_at timestamptz not null default now(),
   primary key (chat_id, position)
 );
+
+create index if not exists messages_search_idx on public.messages using gin (search);
+-- Finding which chat a phrase is in means grouping by chat, and that needs the
+-- owner; the primary key is on (chat_id, position).
+create index if not exists messages_user_idx on public.messages (user_id);
 
 /* ------------------------------ connectors ------------------------------ */
 

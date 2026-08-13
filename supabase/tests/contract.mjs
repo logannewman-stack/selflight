@@ -69,14 +69,28 @@ const OPTIONS = new Set([
   "returning"
 ]);
 
+// Rows built elsewhere and passed in by name — `.update(patch)`. There are no
+// keys to read at this point in the file, so these go unchecked; counted and
+// printed rather than skipped in silence, because a checker that quietly
+// examines less than it claims is how a mismatch reaches a user.
+let indirect = 0;
+
 // The columns inside the object literal that follows insert/update/upsert.
 function objectKeys(body, method) {
   const at = body.indexOf(`.${method}(`);
   if (at === -1) return [];
 
-  const open = body.indexOf("{", at);
-  if (open === -1) return [];
+  // Only a literal starting right at the paren. Searching ahead for the first
+  // `{` anywhere found the error object three lines below `.update(patch)` and
+  // reported `failures.error` as a missing column — a mismatch that wasn't one.
+  const paren = at + `.${method}(`.length;
+  const lead = /^\s*\{/.exec(body.slice(paren));
+  if (!lead) {
+    indirect++;
+    return [];
+  }
 
+  const open = paren + lead[0].length - 1;
   let depth = 0;
   let close = open;
   for (; close < body.length; close++) {
@@ -98,6 +112,45 @@ function objectKeys(body, method) {
   return keys;
 }
 
+// A select list, split into the table each column belongs to.
+//
+// PostgREST joins by naming the other table inside the list:
+// `"chat_id, content, chats!inner(title)"` asks for two columns of `messages`
+// and one of `chats`. Splitting on every comma made `chats!inner(title)` look
+// like a column of `messages` and reported it missing — so the join that powers
+// searching inside conversations failed a check it should have passed. The
+// embedded columns are worth checking too; they're just checked against the
+// table they actually live in.
+function selected(list, table) {
+  const out = [];
+  let depth = 0;
+  let token = "";
+
+  const take = () => {
+    const name = token.trim();
+    token = "";
+    if (!name || name === "*") return;
+
+    const embed = /^([a-z_]+)(?:!\w+)?\s*\(([\s\S]*)\)$/.exec(name);
+    if (embed) {
+      // `chats!inner(title, id)` — recurse, attributing to the joined table.
+      out.push(...selected(embed[2], embed[1]));
+      return;
+    }
+    // `title:name` renames a column on the way out; the real one is the right.
+    out.push({ table, column: name.includes(":") ? name.split(":").pop().trim() : name });
+  };
+
+  for (const char of list) {
+    if (char === "(") depth++;
+    else if (char === ")") depth--;
+    if (char === "," && depth === 0) take();
+    else token += char;
+  }
+  take();
+  return out;
+}
+
 const asked = [];
 
 for (const root of roots.length ? roots : ["src/lib", "api"]) {
@@ -109,15 +162,17 @@ for (const root of roots.length ? roots : ["src/lib", "api"]) {
 
       // .select("a, b, c") — the count/head forms have no columns to check.
       for (const [, list] of body.matchAll(/\.select\(\s*["']([^"']+)["']\s*\)/g)) {
-        for (const column of list.split(",")) {
-          const name = column.trim();
-          if (name && name !== "*") add(name);
+        for (const { table: owner, column } of selected(list, table)) {
+          asked.push({ file, table: owner, column });
         }
       }
 
-      // Filters and ordering.
+      // Filters and ordering. `textSearch` names the tsvector column, which is
+      // generated rather than written, so nothing else in the file mentions it
+      // — leaving it out meant a typo there was invisible until a search
+      // returned nothing.
       for (const [, column] of body.matchAll(
-        /\.(?:eq|neq|gt|gte|lt|lte|like|ilike|is|in|order)\(\s*["']([a-z_]+)["']/g
+        /\.(?:eq|neq|gt|gte|lt|lte|like|ilike|is|in|order|textSearch)\(\s*["']([a-z_]+)["']/g
       )) {
         add(column);
       }
@@ -155,6 +210,12 @@ const tables = [...new Set(asked.map((a) => a.table))].sort();
 console.log(
   `Checked ${seen.size} column references across ${tables.length} tables: ${tables.join(", ")}`
 );
+if (indirect) {
+  console.log(
+    `${indirect} write${indirect === 1 ? "" : "s"} passed a row by name rather than as a literal — ` +
+      `those columns are not checked here.`
+  );
+}
 
 if (problems.length) {
   console.log(`\nMISMATCHES:\n- ${problems.join("\n- ")}`);

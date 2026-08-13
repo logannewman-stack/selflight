@@ -33,9 +33,17 @@ class Store {
 const store = new Store();
 globalThis.localStorage = store;
 
-const { createChat, deleteChat, lastChat, listChats, rememberChat, saveMessages } = await import(
-  "./storage.js"
-);
+const {
+  createChat,
+  deleteChat,
+  lastChat,
+  listChats,
+  rememberChat,
+  renameChat,
+  saveMessages,
+  searchMessages,
+  setPinned
+} = await import("./storage.js");
 
 beforeEach(() => {
   store.data.clear();
@@ -119,4 +127,120 @@ test("a browser that refuses storage entirely doesn't throw", () => {
   // has to keep working, in memory, rather than the app falling over.
   assert.doesNotThrow(() => add("Nowhere to go"));
   assert.doesNotThrow(() => rememberChat("c-1"));
+});
+
+/* -------------------------- pinning and renaming ------------------------- */
+
+test("a pinned chat sits above newer unpinned ones", async () => {
+  const old = add("From last month");
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  add("Newer");
+
+  setPinned(old.id, true);
+
+  assert.deepEqual(listChats().map((c) => c.title), ["From last month", "Newer"]);
+});
+
+test("pinning doesn't misdate the conversation", async () => {
+  const chat = add("Old thread");
+  const when = listChats()[0].updatedAt;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+
+  setPinned(chat.id, true);
+
+  // Bumping updatedAt would move a chat from March into "Today" the moment you
+  // pinned it, and back out again the moment you unpinned it.
+  assert.equal(listChats()[0].updatedAt, when, "pinning is not activity");
+});
+
+test("unpinning puts it back where it belongs", async () => {
+  const old = add("From last month");
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  add("Newer");
+
+  setPinned(old.id, true);
+  setPinned(old.id, false);
+
+  assert.deepEqual(listChats().map((c) => c.title), ["Newer", "From last month"]);
+});
+
+test("two pinned chats keep their own order", async () => {
+  add("First");
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const second = add("Second");
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const third = add("Third");
+
+  setPinned(second.id, true);
+  setPinned(third.id, true);
+
+  assert.deepEqual(listChats().map((c) => c.title), ["Third", "Second", "First"]);
+});
+
+test("renaming doesn't misdate the conversation either", async () => {
+  const chat = add("Untitled");
+  const when = listChats()[0].updatedAt;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+
+  renameChat(chat.id, "Deployment problem");
+
+  const [renamed] = listChats();
+  assert.equal(renamed.title, "Deployment problem");
+  assert.equal(renamed.updatedAt, when);
+});
+
+test("renaming keeps the messages", () => {
+  const chat = createChat({ title: "Old name", messages: [{ role: "user", text: "hello" }] });
+  renameChat(chat.id, "New name");
+
+  assert.deepEqual(listChats()[0].messages, [{ role: "user", text: "hello" }]);
+});
+
+/* ------------------------- searching inside chats ------------------------ */
+
+const withMessages = (title, ...texts) =>
+  createChat({ title, messages: texts.map((text) => ({ role: "user", text })) });
+
+test("a phrase inside a message finds the chat it's in", () => {
+  withMessages("Groceries", "milk and eggs");
+  withMessages("Work", "the staging database is down again");
+
+  const hits = searchMessages("staging database");
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0].title, "Work");
+  assert.match(hits[0].snippet, /staging database/);
+});
+
+test("one hit per chat, however many times it matched", () => {
+  // Six rows from one conversation would bury the five others that matched.
+  withMessages("Busy thread", "deploy failed", "deploy failed again", "deploy fixed");
+  withMessages("Other thread", "deploy notes");
+
+  const hits = searchMessages("deploy");
+  assert.equal(hits.length, 2);
+  assert.equal(new Set(hits.map((h) => h.chatId)).size, 2);
+});
+
+test("searching is case insensitive", () => {
+  withMessages("Notes", "The Migration Ran Cleanly");
+  assert.equal(searchMessages("migration ran").length, 1);
+});
+
+test("one letter searches nothing", () => {
+  withMessages("Notes", "anything at all");
+  // Every chat matches "a". Returning all of them isn't a search result, it's
+  // the list you already had.
+  assert.deepEqual(searchMessages("a"), []);
+  assert.deepEqual(searchMessages(""), []);
+  assert.deepEqual(searchMessages("  "), []);
+});
+
+test("a chat with no messages doesn't throw", () => {
+  createChat({ title: "Empty", messages: [] });
+  assert.doesNotThrow(() => searchMessages("anything"));
+});
+
+test("the limit is honoured", () => {
+  for (let i = 0; i < 40; i++) withMessages(`Chat ${i}`, "shared phrase");
+  assert.equal(searchMessages("shared phrase", 5).length, 5);
 });

@@ -1,5 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowUp, Check, ChevronDown, Globe, Link2, Loader2, Mic, Square } from "lucide-react";
+import {
+  ArrowUp,
+  Check,
+  ChevronDown,
+  FileText,
+  Globe,
+  Link2,
+  Loader2,
+  Mic,
+  Paperclip,
+  Square,
+  X
+} from "lucide-react";
+import { MAX_FILES, readAll, size } from "../lib/attach.js";
 import {
   INSECURE_MESSAGE,
   canRecord,
@@ -32,9 +45,12 @@ export default function Composer({
   onSettings,
   connectorCount,
   canTranscribe,
-  focusSignal
+  focusSignal,
+  attachments = [],
+  onAttach
 }) {
   const ref = useRef(null);
+  const fileRef = useRef(null);
 
   // Two ways to dictate. The browser's own recognition is free and shows words
   // as they're said, so it wins wherever it exists. Recording and sending the
@@ -161,6 +177,64 @@ export default function Composer({
     onSend();
   };
 
+  /* ------------------------------ attachments ----------------------------- */
+
+  const [dragging, setDragging] = useState(false);
+  const [attachError, setAttachError] = useState(null);
+  const [reading, setReading] = useState(false);
+
+  const canAttach = Boolean(onAttach);
+  const full = attachments.length >= MAX_FILES;
+
+  const take = async (fileList) => {
+    if (!canAttach || !fileList?.length) return;
+    setReading(true);
+    setAttachError(null);
+    try {
+      const { attached, errors } = await readAll(fileList, attachments);
+      onAttach(attached);
+      // Every file that didn't make it says why. A drop where two of five files
+      // silently vanish is worse than one that refuses the lot.
+      setAttachError(errors.length ? errors.join(" ") : null);
+    } finally {
+      setReading(false);
+    }
+  };
+
+  // Dragging over the page fires enter/leave for every element crossed, so a
+  // plain boolean flickers. Counting the pairs is the standard fix.
+  const dragDepth = useRef(0);
+
+  const onDragEnter = (e) => {
+    if (!canAttach || !e.dataTransfer?.types?.includes("Files")) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  };
+
+  const onDragLeave = () => {
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  };
+
+  const onDrop = (e) => {
+    if (!canAttach) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    take(e.dataTransfer?.files);
+  };
+
+  // Pasting a file — a screenshot, or a file copied in a file manager. Text
+  // pasted normally must still paste normally, so this only intervenes when the
+  // clipboard actually carries files.
+  const onPaste = (e) => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (!canAttach || !files.length) return;
+    e.preventDefault();
+    take(files);
+  };
+
   // Grow with the text, then scroll instead of pushing the thread off screen.
   useEffect(() => {
     const el = ref.current;
@@ -195,21 +269,92 @@ export default function Composer({
   };
 
   return (
-    <div className="px-4 pb-4 pt-2">
+    <div
+      className="px-4 pb-4 pt-2"
+      onDragEnter={onDragEnter}
+      onDragOver={(e) => canAttach && e.dataTransfer?.types?.includes("Files") && e.preventDefault()}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <div className="thread-col">
-        <div className="flex items-end gap-2 rounded-2xl border border-line bg-surface px-3.5 py-2.5 shadow-[0_1px_3px_rgb(0_0_0/0.04)] focus-within:border-soft">
+        {attachments.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {attachments.map((f) => (
+              <span
+                key={f.name}
+                className="flex max-w-full items-center gap-1.5 rounded-lg border border-line bg-surface py-1 pl-2 pr-1 text-sm"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-soft" strokeWidth={2} />
+                <span className="min-w-0 truncate text-muted">{f.name}</span>
+                <span className="shrink-0 text-2xs text-soft">
+                  {size(f.size)}
+                  {/* Said on the chip, not only in a log: an answer about the
+                      first quarter of a file needs to be recognisable as one. */}
+                  {f.truncated ? " · shortened" : ""}
+                </span>
+                <button
+                  onClick={() => onAttach(attachments.filter((a) => a.name !== f.name))}
+                  aria-label={`Remove ${f.name}`}
+                  className="shrink-0 rounded p-0.5 text-soft transition-colors hover:bg-panel hover:text-ink"
+                >
+                  <X className="h-3 w-3" strokeWidth={2.4} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div
+          className={`flex items-end gap-2 rounded-2xl border bg-surface px-3.5 py-2.5 shadow-[0_1px_3px_rgb(0_0_0/0.04)] focus-within:border-soft ${
+            dragging ? "border-accent bg-accent/5" : "border-line"
+          }`}
+        >
           <textarea
             ref={ref}
             rows={1}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={keyDown}
+            onPaste={onPaste}
             placeholder={
-              settings.sendKey === "mod" ? "Message Selflight… (⌘↵ to send)" : "Message Selflight…"
+              dragging
+                ? "Drop the file here"
+                : settings.sendKey === "mod"
+                  ? "Message Selflight… (⌘↵ to send)"
+                  : "Message Selflight…"
             }
             className="no-scrollbar max-h-[200px] flex-1 resize-none bg-transparent py-1 leading-relaxed outline-none placeholder:text-soft"
             style={{ fontSize: "var(--msg-size)" }}
           />
+
+          {canAttach && !streaming && (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  take(e.target.files);
+                  // Cleared so choosing the same file twice in a row still fires.
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={full || reading}
+                aria-label="Attach a file"
+                title={full ? `${MAX_FILES} files is the limit` : "Attach a file"}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-panel hover:text-ink disabled:opacity-40"
+              >
+                {reading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+                ) : (
+                  <Paperclip className="h-4 w-4" strokeWidth={2} />
+                )}
+              </button>
+            </>
+          )}
 
           {/* Always present when there's anything to say — working, or a reason
               it isn't. A missing button is indistinguishable from a broken one. */}
@@ -249,7 +394,9 @@ export default function Composer({
           ) : (
             <button
               onClick={send}
-              disabled={!value.trim()}
+              // A file on its own is a message. "Here's the log" with nothing
+              // typed is a perfectly ordinary thing to send.
+              disabled={!value.trim() && attachments.length === 0}
               aria-label="Send message"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bubble transition-transform active:scale-90 disabled:opacity-25"
             >
@@ -261,6 +408,19 @@ export default function Composer({
         {micError && (
           <p role="alert" className="mt-2 text-center text-sm text-accent">
             {micError}
+          </p>
+        )}
+
+        {attachError && (
+          <p role="alert" className="mt-2 flex items-start gap-2 text-sm text-accent">
+            <span className="min-w-0 flex-1">{attachError}</span>
+            <button
+              onClick={() => setAttachError(null)}
+              aria-label="Dismiss"
+              className="shrink-0 rounded p-0.5 text-soft transition-colors hover:text-ink"
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={2.4} />
+            </button>
           </p>
         )}
 

@@ -1,8 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, ChevronRight, Copy, ExternalLink, RotateCw, ThumbsDown } from "lucide-react";
+import {
+  Check,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FileText,
+  Pencil,
+  RotateCw,
+  ThumbsDown
+} from "lucide-react";
 import { REPORT_REASONS, reportReply } from "../lib/api.js";
+import { splitAttachments, withAttachments } from "../lib/attach.js";
 import CodeBlock from "./CodeBlock.jsx";
 
 // react-markdown hands `pre` its `code` child as an element, so the fenced
@@ -95,7 +105,16 @@ function buildMarkdown({ lineNumbers, codeWrap }) {
   };
 }
 
-export default function Message({ message, streaming, onRegenerate, options = {} }) {
+export default function Message({
+  message,
+  streaming,
+  onRegenerate,
+  onStartEdit,
+  onEdit,
+  onCancelEdit,
+  editing,
+  options = {}
+}) {
   const markdown = useMemo(
     () => buildMarkdown({ lineNumbers: options.lineNumbers, codeWrap: options.codeWrap }),
     [options.lineNumbers, options.codeWrap]
@@ -108,21 +127,76 @@ export default function Message({ message, streaming, onRegenerate, options = {}
       letterSpacing: "var(--tracking-body)"
     };
 
-    if (options.bubbles === "plain") {
+    // An attached file lives inside the message text, because that's the shape
+    // every provider takes and what the messages table stores. Here it comes
+    // back apart, so a conversation shows "server.log" rather than the forty
+    // thousand characters that were actually sent.
+    const { body: written, files } = splitAttachments(message.text);
+
+    // Fixing the question beats arguing with the answer. Editing here drops
+    // everything after this turn and asks again — which is what the messages
+    // table was keyed by position for. Only what was typed is editable; the
+    // files ride along unchanged.
+    if (editing) {
       return (
-        <div className="rise border-l-2 border-accent/50 pl-3.5 font-medium" style={style}>
-          <p className="whitespace-pre-wrap">{message.text}</p>
-        </div>
+        <EditMessage
+          text={written}
+          files={files}
+          style={style}
+          onSave={(next) => onEdit(withAttachments(next, files))}
+          onCancel={onCancelEdit}
+        />
       );
     }
 
+    const chips = files.length > 0 && (
+      <div
+        className={`mb-1.5 flex flex-wrap gap-1.5 ${
+          options.bubbles === "plain" ? "" : "justify-end"
+        }`}
+      >
+        {files.map((file) => (
+          <Attachment key={file.name} file={file} />
+        ))}
+      </div>
+    );
+
+    const body =
+      options.bubbles === "plain" ? (
+        <div className="rise border-l-2 border-accent/50 pl-3.5 font-medium" style={style}>
+          {chips}
+          {written && <p className="whitespace-pre-wrap">{written}</p>}
+        </div>
+      ) : (
+        <div className="rise">
+          {chips}
+          {written && (
+            <div className="flex justify-end">
+              <div
+                className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 text-bubbleInk"
+                style={style}
+              >
+                {written}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
+    if (!onEdit) return body;
+
     return (
-      <div className="rise flex justify-end">
+      <div className="group">
+        {body}
         <div
-          className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 text-bubbleInk"
-          style={style}
+          className={`on-demand mt-1.5 flex items-center gap-0.5 ${
+            options.bubbles === "plain" ? "" : "justify-end"
+          }`}
         >
-          {message.text}
+          <Action onClick={onStartEdit} label="Edit this message and ask again">
+            <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+            Edit
+          </Action>
         </div>
       </div>
     );
@@ -164,7 +238,7 @@ export default function Message({ message, streaming, onRegenerate, options = {}
       {!streaming && message.sources?.length > 0 && <Sources sources={message.sources} />}
 
       {!streaming && message.text && (
-        <div className="mt-2.5 flex items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
+        <div className="on-demand mt-2.5 flex flex-wrap items-center gap-0.5">
           <CopyButton text={message.text} />
           {onRegenerate && (
             <Action onClick={onRegenerate} label="Regenerate this reply">
@@ -370,6 +444,76 @@ function ReportButton({ message, options }) {
   );
 }
 
+// Editing in place, at the size the message was.
+//
+// Everything after this turn is about to be dropped, so the button says so
+// rather than leaving it to be discovered — this is a destructive action
+// wearing an ordinary word.
+function EditMessage({ text, files = [], style, onSave, onCancel }) {
+  const [value, setValue] = useState(text);
+  const area = useRef(null);
+
+  useEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    el.focus();
+    // Cursor at the end, not the start: people edit the thing they just wrote.
+    el.setSelectionRange(el.value.length, el.value.length);
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  const save = () => {
+    const next = value.trim();
+    // With a file attached the question can be empty — the file is the message.
+    if (next || files.length) onSave(next);
+    else onCancel();
+  };
+
+  return (
+    <div className="rise rounded-2xl border border-accent/40 bg-surface p-3">
+      {files.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {files.map((file) => (
+            <Attachment key={file.name} file={file} />
+          ))}
+        </div>
+      )}
+      <textarea
+        ref={area}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          e.target.style.height = "auto";
+          e.target.style.height = `${e.target.scrollHeight}px`;
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onCancel();
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+        }}
+        rows={1}
+        className="thin-scrollbar w-full resize-none bg-transparent text-ink outline-none"
+        style={style}
+      />
+      <div className="mt-2 flex items-center gap-2 border-t border-line pt-2">
+        <button
+          onClick={save}
+          className="rounded-lg bg-ink px-2.5 py-1 font-sans text-sm font-medium text-page transition-opacity hover:opacity-90"
+        >
+          Ask again
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-lg px-2 py-1 font-sans text-sm font-medium text-muted transition-colors hover:text-ink"
+        >
+          Cancel
+        </button>
+        <span className="ml-auto text-2xs text-soft">Replies after this one are replaced</span>
+      </div>
+    </div>
+  );
+}
+
 function Action({ children, onClick, label }) {
   return (
     <button
@@ -389,5 +533,50 @@ function Dot({ delay }) {
       className="h-1.5 w-1.5 animate-bounce rounded-full bg-soft"
       style={{ animationDelay: delay }}
     />
+  );
+}
+
+// A file that was sent with a message.
+//
+// It opens, because the contents genuinely went to the model and a conversation
+// you can't audit is one you have to take on trust. Collapsed by default, since
+// the thread is for reading and a thousand lines of CSV isn't.
+function Attachment({ file }) {
+  const [open, setOpen] = useState(false);
+  const lines = file.text ? file.text.split("\n").length : 0;
+
+  return (
+    <span className="flex max-w-full flex-col">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title={open ? "Hide the contents" : "Show what was sent"}
+        className="flex max-w-full items-center gap-1.5 self-end rounded-lg border border-line bg-surface py-1 pl-2 pr-2.5 font-sans text-sm transition-colors hover:border-soft"
+      >
+        <FileText className="h-3.5 w-3.5 shrink-0 text-soft" strokeWidth={2} />
+        <span className="min-w-0 truncate text-muted">{file.name}</span>
+        <span className="shrink-0 text-2xs text-soft">
+          {lines.toLocaleString()} {lines === 1 ? "line" : "lines"}
+          {file.truncated ? " · shortened" : ""}
+        </span>
+        <ChevronRight
+          className={`h-3 w-3 shrink-0 text-soft transition-transform ${open ? "rotate-90" : ""}`}
+          strokeWidth={2.4}
+        />
+      </button>
+
+      {open && (
+        <span className="mt-1.5 block max-w-full">
+          {file.truncated && (
+            <span className="mb-1 block text-2xs text-soft">
+              Only this much was sent — the rest of the file was too long.
+            </span>
+          )}
+          <pre className="thin-scrollbar max-h-72 overflow-auto rounded-xl border border-line bg-page p-3 text-left text-sm leading-relaxed">
+            <code style={{ fontFamily: "var(--font-code)" }}>{file.text}</code>
+          </pre>
+        </span>
+      )}
+    </span>
   );
 }

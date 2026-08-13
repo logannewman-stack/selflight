@@ -16,6 +16,7 @@ import { draftFrom, importPalette, refreshSwatch } from "./lib/palettes.js";
 import { modeLabel } from "./lib/brand.js";
 import { parseCommand } from "./lib/commands.js";
 import { createThreadCache } from "./lib/threads.js";
+import { withAttachments } from "./lib/attach.js";
 import { fallbackTitle, lastChat, loadSettings, rememberChat } from "./lib/storage.js";
 import { onStoreError, storeFor } from "./lib/store.js";
 import { hasSupabase, supabase } from "./lib/supabase.js";
@@ -75,6 +76,12 @@ export default function App() {
   // True only while a chat with nothing cached is being fetched. Distinct from
   // "no messages", which is a real and different screen.
   const [loadingThread, setLoadingThread] = useState(false);
+  // Which turn is being rewritten, by index. Null when nobody is editing.
+  const [editingAt, setEditingAt] = useState(null);
+  // Files staged for the next message. They're read in the browser and folded
+  // into the message text on send — there is no upload and nothing is stored
+  // anywhere but the conversation itself.
+  const [attachments, setAttachments] = useState([]);
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
@@ -95,6 +102,10 @@ export default function App() {
   // chats mid-stream can't drop a reply into the wrong conversation.
   const chatIdRef = useRef(null);
   const artifactCountRef = useRef(0);
+  // Where each conversation was left. Reopening a long thread at the bottom
+  // loses the place you were reading, which is the difference between a chat
+  // app and a document you can live in.
+  const scrollAtRef = useRef(new Map());
 
   const artifacts = useMemo(() => extractArtifacts(messages), [messages]);
 
@@ -239,7 +250,14 @@ export default function App() {
   const onThreadScroll = () => {
     const el = threadRef.current;
     if (!el) return;
-    setPinned(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    setPinned(atBottom);
+    // Only remember a position that isn't the bottom — "the end" is where a
+    // conversation reopens anyway, and storing it would defeat the pin logic.
+    if (chatIdRef.current) {
+      if (atBottom) scrollAtRef.current.delete(chatIdRef.current);
+      else scrollAtRef.current.set(chatIdRef.current, el.scrollTop);
+    }
   };
 
   const jumpToLatest = () => {
@@ -259,6 +277,7 @@ export default function App() {
     chatIdRef.current = null;
     setActiveId(null);
     setMessages([]);
+    setAttachments([]);
     setError(null);
     setNotice(null);
     setStreaming(false);
@@ -273,6 +292,8 @@ export default function App() {
       stop();
       chatIdRef.current = chat.id;
       setActiveId(chat.id);
+      // Files staged in one conversation shouldn't follow you into another.
+      setAttachments([]);
       setError(null);
       setNotice(null);
       setStreaming(false);
@@ -290,15 +311,54 @@ export default function App() {
       // otherwise the skeleton flashes over a conversation that's already there.
       setLoadingThread(!cached);
 
+      const resume = scrollAtRef.current.get(chat.id);
+      // Opening mid-thread means the auto-scroll must not drag them to the
+      // bottom the moment the messages render.
+      setPinned(resume === undefined);
+
       try {
         const history = await threads.load(chat.id);
         // A second tap while this was in flight wins; don't overwrite it.
-        if (chatIdRef.current === chat.id) setMessages(history);
+        if (chatIdRef.current === chat.id) {
+          setMessages(history);
+          if (resume !== undefined) {
+            // After paint, so the thread has a scroll height to move within.
+            requestAnimationFrame(() => {
+              if (chatIdRef.current === chat.id && threadRef.current) {
+                threadRef.current.scrollTop = resume;
+              }
+            });
+          }
+        }
       } finally {
         if (chatIdRef.current === chat.id) setLoadingThread(false);
       }
     },
     [stop, threads]
+  );
+
+  const searchChats = useCallback((query) => store.chats.search(query), [store]);
+
+  const pinChat = useCallback(
+    async (id, pinned) => {
+      // Reordered locally first so the row moves under the finger that pressed
+      // it; the write behind it is a formality.
+      setChats((current) =>
+        [...current.map((c) => (c.id === id ? { ...c, pinned } : c))].sort(
+          (a, b) => Number(b.pinned) - Number(a.pinned) || (b.updatedAt || 0) - (a.updatedAt || 0)
+        )
+      );
+      await store.chats.setPinned(id, pinned);
+    },
+    [store]
+  );
+
+  const renameChat = useCallback(
+    async (id, title) => {
+      setChats((current) => current.map((c) => (c.id === id ? { ...c, title } : c)));
+      await store.chats.rename(id, title);
+    },
+    [store]
   );
 
   const removeChat = useCallback(
@@ -473,11 +533,16 @@ export default function App() {
 
   const send = async (raw, { asCommand = true } = {}) => {
     const text = (raw ?? input).trim();
-    if (!text || streaming) return;
+    const files = attachments;
+    // A file on its own is a message; text on its own is too. Nothing at all
+    // isn't.
+    if ((!text && !files.length) || streaming) return;
 
     // Checked before the model is ever contacted: an instruction to the
     // interface is answered by the interface, instantly and for nothing.
-    if (asCommand) {
+    // Skipped when files are attached — "make this darker" with a stylesheet
+    // attached is a question about the file, not an instruction to the app.
+    if (asCommand && !files.length) {
       const cmd = parseCommand(text, { settings, themes });
       if (cmd) {
         runCommand(cmd, text);
@@ -487,8 +552,12 @@ export default function App() {
     }
     setCommand(null);
 
-    const base = [...messages, { role: "user", text }];
+    // The file contents live inside the message: it's what every provider
+    // takes, what the messages table already stores, and what full-text search
+    // already indexes. The interface splits it apart again for display.
+    const base = [...messages, { role: "user", text: withAttachments(text, files) }];
     setInput("");
+    setAttachments([]);
     // Show the question straight away — the write behind it can take a moment.
     setMessages(base);
 
@@ -498,7 +567,10 @@ export default function App() {
     if (isNew) {
       // Store the user's turn before the model answers, so a refresh mid-reply
       // still leaves the question in history.
-      const chat = await store.chats.create({ title: fallbackTitle(text), messages: base });
+      const chat = await store.chats.create({
+        title: fallbackTitle(text || files[0]?.name),
+        messages: base
+      });
       chatId = chat.id;
       chatIdRef.current = chatId;
       setActiveId(chatId);
@@ -526,6 +598,26 @@ export default function App() {
     if (command?.before) setSettings(command.before);
     setCommand(null);
     if (text) send(text, { asCommand: false });
+  };
+
+  // Rewriting a question rather than arguing with the answer. Everything after
+  // the edited turn goes, because a reply to a question that changed is no
+  // longer a reply to anything — and the messages table is keyed by position
+  // precisely so this can overwrite rather than append.
+  const editMessage = async (index, text) => {
+    setEditingAt(null);
+    const trimmed = String(text || "").trim();
+    if (!trimmed || streaming) return;
+
+    const base = [...messages.slice(0, index), { role: "user", text: trimmed }];
+    setMessages(base);
+
+    const chatId = chatIdRef.current;
+    if (!chatId) return;
+
+    await store.chats.saveMessages(chatId, base);
+    threads.update(chatId, base);
+    await runTurn(base, chatId);
   };
 
   const retry = () => {
@@ -652,6 +744,9 @@ export default function App() {
       onNew={newChat}
       onOpen={openChat}
       onPrefetch={(id) => threads.warm(id)}
+      onSearch={searchChats}
+      onPin={pinChat}
+      onRename={renameChat}
       onDelete={removeChat}
       onCollapse={onCollapse}
     />
@@ -764,6 +859,8 @@ export default function App() {
             <div
               ref={threadRef}
               onScroll={onThreadScroll}
+              role="log"
+              aria-label="Conversation"
               className="thin-scrollbar relative flex-1 overflow-y-auto"
             >
               <div className="thread-col px-4" style={{ paddingBlock: "var(--pad-y)" }}>
@@ -804,6 +901,14 @@ export default function App() {
                           onRegenerate={
                             last && m.role === "selflight" && !streaming ? retry : undefined
                           }
+                          editing={editingAt === i}
+                          onStartEdit={
+                            m.role === "user" && !streaming ? () => setEditingAt(i) : undefined
+                          }
+                          onEdit={
+                            m.role === "user" && !streaming ? (text) => editMessage(i, text) : undefined
+                          }
+                          onCancelEdit={() => setEditingAt(null)}
                           options={settings}
                         />
                       );
@@ -897,6 +1002,8 @@ export default function App() {
                 connectorCount={enabledConnectors}
                 canTranscribe={can.transcribe}
                 focusSignal={focusSignal}
+                attachments={attachments}
+                onAttach={setAttachments}
               />
             </div>
           </>

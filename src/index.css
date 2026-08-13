@@ -277,3 +277,32 @@ html[data-motion="reduced"] *::after {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Controls that appear on hover — Copy, Retry, Report, the sidebar's pin and
+   rename buttons.
+ *
+ * The obvious spelling is `opacity-0 group-hover:opacity-100`, and it makes
+ * every one of those controls invisible and unreachable on a phone: touch
+ * devices have no hover, so the state that reveals them never happens. They
+ * were not subtle on mobile, they were absent.
+ *
+ * So the default is visible, and hiding is opted into only where a pointer can
+ * actually hover. `(hover: hover)` is true for a mouse or trackpad and false
+ * for touch — including on a tablet with a keyboard, where it flips correctly
+ * the moment a mouse is attached. */
+.on-demand {
+  opacity: 1;
+  transition: opacity 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .on-demand {
+    opacity: 0;
+  }
+
+  .group:hover .on-demand,
+  .on-demand:focus-within,
+  .on-demand:hover {
+    opacity: 1;
+  }
+}

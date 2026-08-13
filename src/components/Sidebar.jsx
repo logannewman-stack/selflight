@@ -5,6 +5,8 @@ import {
   Link2,
   LogOut,
   PanelLeft,
+  Pencil,
+  Pin,
   Plus,
   Search,
   Shapes,
@@ -12,6 +14,8 @@ import {
   Trash2
 } from "lucide-react";
 import Logo from "./Logo.jsx";
+import { excerpt } from "../lib/excerpt.js";
+import { plain } from "../lib/attach.js";
 
 const DAY = 86400000;
 
@@ -50,17 +54,70 @@ export default function Sidebar({
   onNew,
   onOpen,
   onPrefetch,
+  onPin,
+  onRename,
+  onSearch,
   onDelete,
   onCollapse
 }) {
   const [query, setQuery] = useState("");
+  const [renaming, setRenaming] = useState(null);
+
+  const commitRename = (chat, value) => {
+    const title = value.trim();
+    // An empty title would leave a row with nothing to click on.
+    if (title && title !== chat.title) onRename(chat.id, title);
+    setRenaming(null);
+  };
+
   const [searching, setSearching] = useState(false);
   const [confirming, setConfirming] = useState(null);
+  // Hits from inside conversations, which is the search people actually want.
+  // Matching titles alone only finds a chat you already remember the name of.
+  const [inside, setInside] = useState([]);
+  const [looking, setLooking] = useState(false);
 
-  const filtered = query.trim()
-    ? chats.filter((c) => c.title.toLowerCase().includes(query.trim().toLowerCase()))
-    : chats;
-  const groups = query.trim() ? [["Results", filtered]] : groupByDate(filtered);
+  const needle = query.trim();
+
+  // The list is never filtered by a query that isn't on screen.
+  const closeSearch = () => {
+    setSearching(false);
+    setQuery("");
+  };
+
+  // Debounced, because the remote search is a database query and this fires on
+  // every keystroke. 220ms is under the threshold where typing feels laggy and
+  // well over the gap between two keys in a word.
+  useEffect(() => {
+    if (needle.length < 2 || !onSearch) {
+      setInside([]);
+      setLooking(false);
+      return;
+    }
+    setLooking(true);
+    let live = true;
+    const timer = setTimeout(async () => {
+      const hits = await onSearch(needle);
+      if (!live) return;
+      setInside(hits || []);
+      setLooking(false);
+    }, 220);
+
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [needle, onSearch]);
+
+  // Titles match instantly and locally; message text arrives a moment later.
+  // Showing the title matches first means the list is never empty while the
+  // slower half is still running.
+  const byTitle = needle ? chats.filter((c) => c.title.toLowerCase().includes(needle.toLowerCase())) : chats;
+  const titleIds = new Set(byTitle.map((c) => c.id));
+  const insideOnly = inside.filter((hit) => !titleIds.has(hit.chatId));
+
+  const filtered = byTitle;
+  const groups = needle ? [["Titles", filtered]] : groupByDate(filtered);
 
   return (
     <div className="flex h-full w-[252px] shrink-0 flex-col bg-panel">
@@ -69,10 +126,7 @@ export default function Sidebar({
         <div className="flex items-center gap-0.5">
           <IconButton
             label={searching ? "Close search" : "Search chats"}
-            onClick={() => {
-              setSearching((s) => !s);
-              setQuery("");
-            }}
+            onClick={() => (searching ? closeSearch() : setSearching(true))}
           >
             <Search className="h-4 w-4" strokeWidth={2} />
           </IconButton>
@@ -106,8 +160,13 @@ export default function Sidebar({
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && setSearching(false)}
-            placeholder="Search chats"
+            // Escape clears what you typed, and clears the box away once
+            // there's nothing left to clear. Closing it while a query was still
+            // in effect left the sidebar filtered down to nothing by a phrase
+            // that was no longer on screen — an empty chat list with no visible
+            // cause and no obvious way back.
+            onKeyDown={(e) => e.key === "Escape" && (needle ? setQuery("") : closeSearch())}
+            placeholder="Search chats and messages"
             className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-base outline-none placeholder:text-soft focus:border-soft"
           />
         </div>
@@ -130,11 +189,44 @@ export default function Sidebar({
         />
       </nav>
 
-      <div className="thin-scrollbar mt-3.5 flex-1 overflow-y-auto px-3 pb-4">
+      <nav
+        aria-label="Conversations"
+        className="thin-scrollbar mt-3.5 flex-1 overflow-y-auto px-3 pb-4"
+      >
         {filtered.length === 0 && (
           <p className="px-2 pt-1 text-sm leading-relaxed text-soft">
-            {chats.length === 0 ? "Your chats will show up here." : "No chats match that."}
+            {chats.length === 0
+              ? "Your chats will show up here."
+              : insideOnly.length || looking
+                ? "No titles match — see below."
+                : "Nothing matches that."}
           </p>
+        )}
+
+        {needle && (insideOnly.length > 0 || looking) && (
+          <div className="mb-3">
+            <p className="px-2 pb-1 text-xs font-semibold uppercase tracking-[0.1em] text-soft">
+              In conversations
+            </p>
+            {looking && insideOnly.length === 0 && (
+              <p className="px-2 py-1 text-sm text-soft">Looking…</p>
+            )}
+            {insideOnly.map((hit) => (
+              <button
+                key={hit.chatId}
+                onClick={() => onOpen({ id: hit.chatId, title: hit.title })}
+                onPointerEnter={() => onPrefetch?.(hit.chatId)}
+                className="row-y block w-full rounded-lg px-2.5 text-left transition-colors hover:bg-surface/60"
+              >
+                <span className="block truncate text-base text-muted">{hit.title}</span>
+                {/* The line the phrase was found in, not the whole message —
+                    a search result that needs scrolling isn't a result. */}
+                <span className="block truncate text-sm text-soft">
+                  {excerpt(plain(hit.snippet), needle)}
+                </span>
+              </button>
+            ))}
+          </div>
         )}
 
         {groups.map(([label, list]) => (
@@ -151,26 +243,45 @@ export default function Sidebar({
                     active ? "bg-surface" : "hover:bg-surface/60"
                   }`}
                 >
-                  <button
-                    onClick={() => onOpen(chat)}
-                    // Start loading before the tap lands. On a mouse that's the
-                    // ~200ms between hovering and clicking; on a touchscreen
-                    // it's the whole duration of the press. Either is usually
-                    // longer than the fetch, so the chat is already there.
-                    onPointerEnter={() => onPrefetch?.(chat.id)}
-                    onTouchStart={() => onPrefetch?.(chat.id)}
-                    onFocus={() => onPrefetch?.(chat.id)}
-                    className="row-y flex min-w-0 flex-1 items-center gap-2 pl-2.5 text-left"
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-accent" : "bg-transparent"}`}
+                  {renaming === chat.id ? (
+                    /* Renaming in place rather than in a dialog: the title you
+                       are fixing is the one you can see, and a modal would
+                       hide it behind the thing editing it. */
+                    <input
+                      autoFocus
+                      defaultValue={chat.title}
+                      onBlur={(e) => commitRename(chat, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitRename(chat, e.target.value);
+                        if (e.key === "Escape") setRenaming(null);
+                      }}
+                      aria-label="Chat name"
+                      className="row-y min-w-0 flex-1 rounded-md bg-page px-2 text-base text-ink outline-none ring-1 ring-accent/50"
                     />
-                    <span
-                      className={`truncate text-base ${active ? "font-medium text-ink" : "text-muted"}`}
+                  ) : (
+                    <button
+                      onClick={() => onOpen(chat)}
+                      // Start loading before the tap lands. On a mouse that's
+                      // the ~200ms between hovering and clicking; on a
+                      // touchscreen it's the whole duration of the press.
+                      // Either is usually longer than the fetch, so the chat is
+                      // already there.
+                      onPointerEnter={() => onPrefetch?.(chat.id)}
+                      onTouchStart={() => onPrefetch?.(chat.id)}
+                      onFocus={() => onPrefetch?.(chat.id)}
+                      onDoubleClick={() => setRenaming(chat.id)}
+                      className="row-y flex min-w-0 flex-1 items-center gap-2 pl-2.5 text-left"
                     >
-                      {chat.title}
-                    </span>
-                  </button>
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${active ? "bg-accent" : "bg-transparent"}`}
+                      />
+                      <span
+                        className={`truncate text-base ${active ? "font-medium text-ink" : "text-muted"}`}
+                      >
+                        {chat.title}
+                      </span>
+                    </button>
+                  )}
 
                   {confirming === chat.id ? (
                     <div className="flex shrink-0 items-center gap-0.5 text-xs font-semibold">
@@ -191,20 +302,49 @@ export default function Sidebar({
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => setConfirming(chat.id)}
-                      aria-label={`Delete ${chat.title}`}
-                      className="shrink-0 rounded-md p-1.5 text-soft opacity-0 transition-opacity hover:text-ink focus:opacity-100 group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                    </button>
+                    /* `on-demand` rather than `group-hover:opacity-100`: touch
+                       devices never hover, so the hover spelling made every one
+                       of these unreachable on a phone. A pinned chat keeps its
+                       pin visible regardless — it's state, not an action. */
+                    <div className="flex shrink-0 items-center">
+                      <button
+                        onClick={() => onPin(chat.id, !chat.pinned)}
+                        aria-label={chat.pinned ? `Unpin ${chat.title}` : `Pin ${chat.title}`}
+                        title={chat.pinned ? "Unpin" : "Pin to the top"}
+                        className={`rounded-md p-1.5 transition-colors hover:text-ink ${
+                          chat.pinned ? "text-accent" : "on-demand text-soft"
+                        }`}
+                      >
+                        <Pin
+                          className="h-3.5 w-3.5"
+                          strokeWidth={2}
+                          fill={chat.pinned ? "currentColor" : "none"}
+                        />
+                      </button>
+                      <button
+                        onClick={() => setRenaming(chat.id)}
+                        aria-label={`Rename ${chat.title}`}
+                        title="Rename"
+                        className="on-demand rounded-md p-1.5 text-soft transition-colors hover:text-ink"
+                      >
+                        <Pencil className="h-3.5 w-3.5" strokeWidth={2} />
+                      </button>
+                      <button
+                        onClick={() => setConfirming(chat.id)}
+                        aria-label={`Delete ${chat.title}`}
+                        title="Delete"
+                        className="on-demand rounded-md p-1.5 text-soft transition-colors hover:text-ink"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
+                      </button>
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
         ))}
-      </div>
+      </nav>
 
       <div className="flex items-center gap-1 border-t border-line p-2">
         <button
@@ -283,3 +423,4 @@ function IconButton({ children, onClick, label }) {
     </button>
   );
 }
+

@@ -53,7 +53,9 @@ export const RECENT_COLUMNS = [
   ["usage_events", "cost_micros", "0005_money.sql"],
   ["usage_events", "searched", "0005_money.sql"],
   ["profiles", "plan", "0005_money.sql"],
-  ["profiles", "plan_since", "0005_money.sql"]
+  ["profiles", "plan_since", "0005_money.sql"],
+  ["chats", "pinned", "0006_chats.sql"],
+  ["messages", "search", "0006_chats.sql"]
 ];
 
 export default async function handler(req, res) {

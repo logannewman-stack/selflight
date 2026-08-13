@@ -71,7 +71,7 @@ never touches your project — and checks two things.
 **That the policies isolate people.** It creates two accounts, has one write
 chats, messages, palettes, connectors and settings, then becomes the other and
 tries to read them, rename them, delete them, and forge rows owned by the first.
-32 assertions, including that a signed-out request sees nothing and that deleting
+38 assertions, including that a signed-out request sees nothing and that deleting
 an account takes its data with it.
 
 **That the app's queries match the schema.** Every Supabase call names its

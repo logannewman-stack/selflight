@@ -66,16 +66,54 @@ function saveChats(chats) {
   console.error("[storage] this browser refused to save chats at all.");
 }
 
-function patchChat(id, fields) {
-  saveChats(readChats().map((c) => (c.id === id ? { ...c, ...fields, updatedAt: Date.now() } : c)));
+function patchChat(id, fields, { touch = true } = {}) {
+  saveChats(
+    readChats().map((c) =>
+      c.id === id ? { ...c, ...fields, ...(touch ? { updatedAt: Date.now() } : {}) } : c
+    )
+  );
 }
 
+// Pinned first, then most recent. The same order the remote store uses, so the
+// sidebar doesn't reshuffle when someone signs in.
 export function listChats() {
-  return readChats().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  return readChats().sort(
+    (a, b) => Number(b.pinned || false) - Number(a.pinned || false) || (b.updatedAt || 0) - (a.updatedAt || 0)
+  );
+}
+
+export function setPinned(id, pinned) {
+  // Deliberately doesn't touch updatedAt: pinning is about where a chat sits,
+  // and bumping it to "just now" would misdate a conversation from last month.
+  patchChat(id, { pinned: Boolean(pinned) }, { touch: false });
+}
+
+/**
+ * Finds a phrase inside conversations, not just in their titles.
+ *
+ * Returns one hit per chat — the first matching message — because a list with
+ * six rows from the same conversation buries the other five conversations that
+ * also matched.
+ */
+export function searchMessages(query, limit = 30) {
+  const needle = String(query || "").trim().toLowerCase();
+  if (needle.length < 2) return [];
+
+  const hits = [];
+  for (const chat of listChats()) {
+    const found = (chat.messages || []).find((m) =>
+      String(m.text || "").toLowerCase().includes(needle)
+    );
+    if (found) {
+      hits.push({ chatId: chat.id, title: chat.title, snippet: found.text, role: found.role });
+      if (hits.length >= limit) break;
+    }
+  }
+  return hits;
 }
 
 export function createChat({ title, messages }) {
-  const chat = { id: uid("c"), title, messages, updatedAt: Date.now() };
+  const chat = { id: uid("c"), title, messages, pinned: false, updatedAt: Date.now() };
   saveChats([chat, ...readChats()]);
   return chat;
 }
@@ -104,7 +142,8 @@ export function saveMessages(id, messages) {
 }
 
 export function renameChat(id, title) {
-  patchChat(id, { title });
+  // Same reasoning as pinning — renaming is not activity.
+  patchChat(id, { title }, { touch: false });
 }
 
 export function deleteChat(id) {

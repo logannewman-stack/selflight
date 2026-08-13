@@ -90,6 +90,38 @@ while you type: web search on or off, and **Iris 6.0** with its effort setting �
 Balanced or Deep, each showing roughly what a message costs, because that's the setting
 that decides the bill.
 
+**Working with a conversation.** Every chat in the sidebar can be **pinned** to the top,
+**renamed** in place (double-click the title, or use the pencil), or deleted. Search looks
+**inside** conversations, not just at their titles — the thing you actually want, since a
+title search only finds a chat you already remember the name of. Signed in that's a
+Postgres full-text index rather than a scan, so it stays fast as history grows. Each result
+shows the line the phrase was found in, centred on the match.
+
+Your own messages can be **edited and asked again**: the turn is replaced and everything
+after it is dropped, because a reply to a question that changed is no longer a reply to
+anything. And every conversation remembers **where you were reading** — reopening a long
+thread puts you back mid-scroll rather than at the bottom.
+
+The pin, rename and delete buttons appear on hover on a mouse and are simply always visible
+on a touchscreen. That's `.on-demand` in `src/index.css`, and it exists because the obvious
+spelling — `group-hover:opacity-100` — leaves all three permanently invisible on every
+phone.
+
+**Attaching a file.** The paperclip in the composer, a drag onto it, or a paste. Text and
+code files are read in the browser and their contents go into the message — there's no
+upload and nothing is stored anywhere but the conversation. The thread shows a chip with
+the filename and line count; click it to see exactly what was sent, because the contents
+genuinely did go to the model and a conversation you can't audit is one you have to take on
+trust.
+
+Up to 8 files, 40,000 characters each (about 10,000 tokens — worth knowing, since that's
+two or three times a normal message on the bill). Anything longer is cut and *says* it was
+cut, on the chip and in the message. PDFs, Word documents, spreadsheets and images are
+refused with the reason and what to do instead — every provider here is handed
+`{ role, content }` with content a plain string, so an image has nowhere to go. Accepting
+one and sending nothing would look identical to working, right up until the answer is
+confidently about a file the model never saw.
+
 **Dictation.** The microphone in the composer turns speech into text. Chrome, Edge and
 Safari recognise it in the browser — free, and words appear live as you talk. Firefox has
 no speech recognition at all, so it records instead and posts the audio to
@@ -520,7 +552,7 @@ request pieces — system prompt, effort, tools, MCP servers — and `npm test` 
 directly. No network, no API key, no dependencies:
 
 ```bash
-npm test        # 58 tests
+npm test        # 243 tests
 ```
 
 It checks that tone changes the prompt, that standing instructions are passed through
@@ -558,10 +590,24 @@ wait on `document.fonts.load()` or the check races. And the conversation lives i
 container, so screenshotting that element captures only the visible slice; the fixture is
 kept short enough to fit on screen, and the hash covers the whole viewport.
 
+**Conversations and attachments do what they say.** Two more browser suites, same idea —
+drive the real thing and assert on what actually happened:
+
+```bash
+npm run dev              # in one terminal
+npm run verify:threads   # pin, rename, search, edit, scroll position
+npm run verify:attach    # attaching a file
+```
+
+`verify:threads` emulates a phone to check the row actions are reachable without hovering,
+and confirms a pin survives a reload rather than living only in React state. `verify:attach`
+reads the body posted to `/api/chat`, which is the only check that matters: a chip in the
+composer proves the interface works, but only the request proves the file was sent.
+
 **The database keeps its promises.** If you've set up accounts, `npm run test:schema`
 builds a throwaway database from the migration on a local Postgres — never your project —
 and checks that the row-level policies isolate two real users, and that every column the
-app's queries name actually exists. 32 assertions and a schema cross-check; details in
+app's queries name actually exists. 38 assertions and a schema cross-check; details in
 [supabase/README.md](supabase/README.md#check-it-worked).
 
 ## How it's put together
@@ -585,8 +631,14 @@ app's queries name actually exists. 32 assertions and a schema cross-check; deta
 | `src/lib/artifacts.js` | Pulls code blocks out of replies. |
 | `src/components/panels/` | Settings (Assistant / Appearance / Connectors tabs), Artifacts, Build, and the palette editor. |
 | `src/lib/dictation.js` | Speech to text, through the browser. Tested by `dictation.test.mjs`. |
+| `src/lib/attach.js` | Reads a file into a message and pulls it back out again for display. Tested by `attach.test.mjs`. |
+| `src/lib/threads.js` | The conversation cache that makes reopening a chat instant. Tested by `threads.test.mjs`. |
+| `src/lib/excerpt.js` | The line a search hit was found in, centred on the phrase. Tested by `excerpt.test.mjs`. |
 | `src/components/Logo.jsx` | The mark and the lockup. |
 | `verify/appearance.mjs` | Measures every appearance control against real computed styles and pixels. |
+| `verify/threads.mjs` | Pin, rename, search, edit and scroll position, driven in a real browser and on a real touch layout. |
+| `verify/attach.mjs` | Attaching a file, including reading what was actually posted to `/api/chat`. |
+| `verify/speed.mjs` | Times opening a chat against a deliberately slow store. |
 | `scripts/doctor.mjs` | `npm run doctor` — checks the key, the schema, what the public key can read, and a deployment. |
 
 ## Things you'll probably want to change
@@ -607,7 +659,7 @@ is in `DEFAULT_SETTINGS` in `src/lib/storage.js`.
 ## What isn't here yet
 
 - **Billing.** No Stripe and no plans — just a token cap per user per month.
-- **File and image uploads.**
+- **Image and PDF attachments.** Text and code files work; see above for why images don't.
 - **Artifact history across chats.** The canvas shows the current conversation only.
 - **Password reset.** Supabase can send the email; the screen for it isn't built.
 - **Sharing.** Every row belongs to exactly one person, by design. Shared chats would
