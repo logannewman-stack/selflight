@@ -139,6 +139,26 @@ const off = /\b(?:off|disable|disabled|turn off|no|stop|don'?t|without|never)\b/
 // specific ones come before the general. `accent` before `background`, because
 // "make the accent blue" also contains a colour and a directive.
 
+// The palette in effect right now, if it's one that refuses to be recoloured.
+//
+// High contrast and its dark twin ignore a main colour and an accent, which is
+// the whole point of them — but a typed instruction is explicit, and silently
+// dropping it would leave "Background is tan." on screen with nothing changed.
+// So the instruction wins and the consequence gets said out loud.
+function fixedPalette(ctx) {
+  const id = ctx.settings?.matchSystem
+    ? ctx.prefersDark
+      ? ctx.settings?.darkTheme
+      : ctx.settings?.lightTheme
+    : ctx.settings?.theme;
+
+  const active = (ctx.themes || []).find((t) => t.id === id);
+  if (!active?.fixed) return null;
+  // Somewhere for the tint to land — it supplies the syntax colours and
+  // shadows the tint doesn't derive.
+  return { name: active.name, fallback: active.dark ? "midnight" : "paper" };
+}
+
 const RULES = [
   /* ---- getting around ---- */
 
@@ -166,32 +186,47 @@ const RULES = [
 
   /* ---- colour ---- */
 
-  function accent(s) {
+  function accent(s, ctx) {
     if (!/\b(?:accent|highlight|link colou?r|button colou?r)\b/.test(s)) return null;
+
+    // Going back to the palette's own accent is already what a fixed palette
+    // does, so that path needs none of the handling below.
+    if (/\b(?:default|palette|reset|back|normal)\b/.test(s)) {
+      return { patch: { accent: "palette" }, say: "Accent back to the palette's own." };
+    }
+
+    const fixed = fixedPalette(ctx);
+    const leave = fixed ? { theme: fixed.fallback } : {};
+    const note = fixed ? ` That turned off ${fixed.name}.` : "";
 
     const named = ACCENTS.find(
       (a) => a.rgb && new RegExp(`\\b${a.name.toLowerCase()}\\b`).test(s)
     );
-    if (named) return { patch: { accent: named.id }, say: `Accent is ${named.name.toLowerCase()}.` };
-
-    if (/\b(?:default|palette|reset|back|normal)\b/.test(s)) {
-      return { patch: { accent: "palette" }, say: "Accent back to the palette's own." };
+    if (named) {
+      return {
+        patch: { accent: named.id, ...leave },
+        say: `Accent is ${named.name.toLowerCase()}.${note}`
+      };
     }
 
     const found = findColor(s);
     if (!found) return null;
     return {
-      patch: { accent: "custom", accentCustom: found.hex },
-      say: `Accent is ${found.name}.`
+      patch: { accent: "custom", accentCustom: found.hex, ...leave },
+      say: `Accent is ${found.name}.${note}`
     };
   },
 
   function namedTheme(s, ctx) {
     if (!ctx.asked) return null;
 
+    // Longest name first, or "High contrast" matches inside "High contrast
+    // dark" and the dark one becomes unreachable by name.
+    const byLength = [...(ctx.themes || [])].sort((a, b) => b.name.length - a.name.length);
+
     // User-made palettes are matched by name too, so "switch to my Ocean
     // palette" works the day after it's written.
-    for (const theme of ctx.themes || []) {
+    for (const theme of byLength) {
       const name = theme.name.toLowerCase();
       // One-word palette names need the word "theme" or "palette" nearby, or
       // any message containing "focus" would change the theme.
@@ -246,9 +281,16 @@ const RULES = [
       /\b(?:background|bg|colou?r|theme|palette|app|interface|ui|page|screen|everything|it)\b/.test(s);
     if (!target) return null;
 
+    const fixed = fixedPalette(ctx);
     return {
-      patch: { baseColor: found.hex, matchSystem: false },
-      say: `Background is ${found.name}.`
+      patch: {
+        baseColor: found.hex,
+        matchSystem: false,
+        ...(fixed ? { theme: fixed.fallback } : {})
+      },
+      say: fixed
+        ? `Background is ${found.name}. That turned off ${fixed.name}.`
+        : `Background is ${found.name}.`
     };
   },
 

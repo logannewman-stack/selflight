@@ -543,7 +543,7 @@ export default function App() {
     // Skipped when files are attached — "make this darker" with a stylesheet
     // attached is a question about the file, not an instruction to the app.
     if (asCommand && !files.length) {
-      const cmd = parseCommand(text, { settings, themes });
+      const cmd = parseCommand(text, { settings, themes, prefersDark });
       if (cmd) {
         runCommand(cmd, text);
         setInput("");

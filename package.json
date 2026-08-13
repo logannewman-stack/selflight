@@ -15,7 +15,8 @@
     "eval": "node evals/run.mjs",
     "verify:speed": "node verify/speed.mjs",
     "verify:threads": "node verify/threads.mjs",
-    "verify:attach": "node verify/attach.mjs"
+    "verify:attach": "node verify/attach.mjs",
+    "verify:contrast": "node verify/contrast.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

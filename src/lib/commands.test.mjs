@@ -182,3 +182,80 @@ test("spoken padding doesn't stop a command landing", () => {
   assert.ok(run("um okay so can you please make the background cream thanks"));
   assert.ok(run("hey selflight open the appearance settings"));
 });
+
+/* ------------------- colour instructions on a fixed palette ---------------- */
+//
+// High contrast ignores a main colour and an accent by design. A typed
+// instruction is explicit, though, so it has to be honoured — the alternative
+// is "Background is tan." on screen with nothing changed, which is the exact
+// failure the palette lock was added to fix.
+
+const onContrast = (text, theme = "contrast") =>
+  parseCommand(text, { ...ctx, settings: { ...ctx.settings, theme } });
+
+test("a colour instruction still repaints while High contrast is on", () => {
+  const cmd = onContrast("make the background tan");
+  assert.ok(cmd, "the instruction should still parse");
+  assert.equal(cmd.patch.baseColor, findColor("tan").hex);
+  // Without this the tint is ignored and nothing on screen moves.
+  assert.ok(cmd.patch.theme, "it has to leave the palette that refuses to be tinted");
+  assert.notEqual(cmd.patch.theme, "contrast");
+});
+
+test("and says which palette it turned off", () => {
+  assert.match(onContrast("make the background tan").say, /turned off High contrast/);
+});
+
+test("the dark twin is handled the same way, and lands somewhere dark", () => {
+  const cmd = onContrast("make the background navy", "contrast-dark");
+  assert.equal(cmd.patch.theme, "midnight", "a dark palette shouldn't jump to a light one");
+  assert.match(cmd.say, /turned off High contrast dark/);
+});
+
+test("an accent instruction leaves it too, and says so", () => {
+  const cmd = onContrast("make the accent blue");
+  assert.equal(cmd.patch.accent, "blue");
+  assert.ok(cmd.patch.theme);
+  assert.match(cmd.say, /turned off High contrast/);
+});
+
+test("going back to the palette's own accent doesn't switch palette", () => {
+  // That's already what a fixed palette does, so there's nothing to leave.
+  const cmd = onContrast("put the accent back to the palette's");
+  assert.equal(cmd.patch.accent, "palette");
+  assert.equal(cmd.patch.theme, undefined);
+});
+
+test("on an ordinary palette nothing extra happens and nothing extra is said", () => {
+  const cmd = parseCommand("make the background tan", {
+    ...ctx,
+    settings: { ...ctx.settings, theme: "paper" }
+  });
+  assert.equal(cmd.patch.theme, undefined);
+  assert.equal(cmd.say, "Background is tan.");
+});
+
+test("with match system on, it reads the slot the device is actually using", () => {
+  const dark = parseCommand("make the background tan", {
+    ...ctx,
+    prefersDark: true,
+    settings: { ...ctx.settings, matchSystem: true, darkTheme: "contrast-dark", lightTheme: "paper" }
+  });
+  assert.match(dark.say, /turned off High contrast dark/);
+
+  const light = parseCommand("make the background tan", {
+    ...ctx,
+    prefersDark: false,
+    settings: { ...ctx.settings, matchSystem: true, darkTheme: "contrast-dark", lightTheme: "paper" }
+  });
+  assert.equal(light.say, "Background is tan.", "the light slot isn't fixed, so nothing to leave");
+});
+
+/* ------------------------------ picking by name --------------------------- */
+
+test("both high contrast palettes can be chosen by name", () => {
+  // "High contrast" is a prefix of "High contrast dark", so matching in array
+  // order made the dark one unreachable.
+  assert.equal(run("switch to the high contrast theme").patch.theme, "contrast");
+  assert.equal(run("switch to the high contrast dark theme").patch.theme, "contrast-dark");
+});

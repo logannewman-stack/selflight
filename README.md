@@ -163,7 +163,7 @@ interface is yours to shape:
 
 | Group | Options |
 | --- | --- |
-| Colour packages | Six built-in palettes, match-system light/dark pairing, nine accent colours *or any colour you pick*, a **main colour** that re-tints the whole interface, plus your own packages — see below |
+| Colour packages | Seven built-in palettes, match-system light/dark pairing, nine accent colours *or any colour you pick*, a **main colour** that re-tints the whole interface, plus your own packages — see below |
 | Typefaces | 25 faces, chosen separately for interface, replies, and code |
 | Typography | Text size, weight, line spacing, letter spacing, paragraph spacing, heading size, reduced motion |
 | Layout | Density, conversation width, corner rounding, bubble or plain user messages |
@@ -172,6 +172,42 @@ interface is yours to shape:
 
 Everything applies instantly, persists, and has a reset that leaves your chats,
 instructions, and saved packages alone.
+
+### High contrast is what ships
+
+The default palette is **High contrast** — black on white, 21:1 body text, 11.7:1 secondary,
+with **High contrast dark** as its inverted twin for dark mode and for the dark half of a
+match-system pair. Every other palette is one click away in Appearance. Shipping the
+prettiest option and leaving legibility as a setting gets it backwards: the people who need
+it most are the least likely to go looking for it.
+
+Both are marked `fixed` in `src/lib/themes.js`, which exempts them from two controls that
+would otherwise quietly undo them:
+
+- **Main colour** derives every surface and text colour from one background, which lands
+  around 4.5:1 wherever it starts. Applied to High contrast it dropped body text from 21:1
+  to 4.5 and secondary text to 2.5 — *below the AA floor* — while the card still showed
+  "High contrast ✓".
+- **The accent picker** replaced its 8:1 blue with whatever you chose. Sky blue on white is
+  2.4:1: fine as taste, unreadable as an accent.
+
+The Appearance panel dims both and says why, rather than leaving controls that look
+available and do nothing. Typing "make the background tan" still works — an instruction is
+explicit, so it's honoured and the reply says what it cost: *"Background is tan. That turned
+off High contrast."*
+
+Every palette is measured rather than eyeballed, against both backgrounds text actually sits
+on — the page and the sidebar panel:
+
+```bash
+npm test                  # WCAG ratios for all seven palettes
+npm run verify:contrast   # the same ratios, read off rendered elements in a browser
+```
+
+Those two disagreeing is how the last one was found: the palettes all passed on paper while
+the sidebar's date headings rendered at 2.98:1, because they sit on `bg-panel` and the test
+only checked `bg-page`. Paper, Slate and Focus each needed their secondary and hint greys
+darkened to clear AA — they were shipping at 4.0–4.5:1 and 2.2–3.0:1.
 
 ### Recolouring the whole app from one pick
 
@@ -552,7 +588,7 @@ request pieces — system prompt, effort, tools, MCP servers — and `npm test` 
 directly. No network, no API key, no dependencies:
 
 ```bash
-npm test        # 243 tests
+npm test        # 266 tests
 ```
 
 It checks that tone changes the prompt, that standing instructions are passed through
@@ -597,6 +633,7 @@ drive the real thing and assert on what actually happened:
 npm run dev              # in one terminal
 npm run verify:threads   # pin, rename, search, edit, scroll position
 npm run verify:attach    # attaching a file
+npm run verify:contrast  # every palette, measured on rendered pixels
 ```
 
 `verify:threads` emulates a phone to check the row actions are reachable without hovering,
@@ -639,6 +676,7 @@ app's queries name actually exists. 38 assertions and a schema cross-check; deta
 | `verify/threads.mjs` | Pin, rename, search, edit and scroll position, driven in a real browser and on a real touch layout. |
 | `verify/attach.mjs` | Attaching a file, including reading what was actually posted to `/api/chat`. |
 | `verify/speed.mjs` | Times opening a chat against a deliberately slow store. |
+| `verify/contrast.mjs` | Reads the colour of real elements and fails anything under the WCAG floor. |
 | `scripts/doctor.mjs` | `npm run doctor` — checks the key, the schema, what the public key can read, and a deployment. |
 
 ## Things you'll probably want to change

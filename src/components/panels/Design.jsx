@@ -76,6 +76,11 @@ export default function Design({
     : activePalette?.vars.page || "255 255 255";
   const currentAccent = accentFor(settings) || activePalette?.vars.accent || "0 0 0";
 
+  // A palette picked because it can be read isn't a starting point for recolouring.
+  // Both controls below are inert while one is active, so they say so rather than
+  // sitting there looking available and doing nothing when clicked.
+  const fixed = Boolean(activePalette?.fixed);
+
   const chooseTheme = (theme) => {
     // With "match system" on, a palette claims the light or dark slot it
     // belongs to rather than overriding the current one.
@@ -223,7 +228,7 @@ export default function Design({
           </div>
         )}
 
-        <div>
+        <div className={fixed ? "opacity-50" : ""}>
           <p className="mb-2 text-base font-medium">Accent</p>
           <div className="flex flex-wrap items-center gap-1.5">
             {ACCENTS.map((accent) => {
@@ -232,6 +237,7 @@ export default function Design({
                 <button
                   key={accent.id}
                   onClick={() => onSettings({ accent: accent.id })}
+                  disabled={fixed}
                   title={accent.name}
                   aria-label={`Accent: ${accent.name}`}
                   className={`flex h-7 w-7 items-center justify-center rounded-full ring-1 transition-transform ${
@@ -248,32 +254,38 @@ export default function Design({
             <ColourWell
               label="Accent: custom"
               active={settings.accent === "custom"}
+              disabled={fixed}
               value={settings.accentCustom || tripletToHex(currentAccent)}
               onChange={(hex) => onSettings({ accent: "custom", accentCustom: hex })}
             />
           </div>
           <p className="mt-1.5 text-sm text-muted">
-            Overrides a built-in palette's accent. The last swatch is any colour you like.
+            {fixed
+              ? `${activePalette.name} keeps its own accent — a lighter one would undo the contrast it was picked for.`
+              : "Overrides a built-in palette's accent. The last swatch is any colour you like."}
           </p>
         </div>
 
-        <div>
+        <div className={fixed ? "opacity-50" : ""}>
           <p className="mb-1 text-base font-medium">Main colour</p>
           <p className="mb-2.5 text-sm leading-relaxed text-muted">
-            Recolours the whole interface from one pick. Panels, borders, and text are worked out
-            from it, and going dark enough flips the app to a dark theme on its own.
+            {fixed
+              ? `${activePalette.name} isn't recoloured. Working every surface out from one pick lands around 4.5:1 wherever it starts, which is most of the contrast gone — switch palette first if you want this.`
+              : "Recolours the whole interface from one pick. Panels, borders, and text are worked out from it, and going dark enough flips the app to a dark theme on its own."}
           </p>
 
           <div className="flex flex-wrap items-center gap-2">
             <ColourWell
               label="Main colour"
               active={Boolean(settings.baseColor)}
+              disabled={fixed}
               value={settings.baseColor || tripletToHex(palettePage)}
               onChange={(hex) => onSettings({ baseColor: hex })}
             />
 
             <HexField
               value={settings.baseColor || tripletToHex(palettePage)}
+              disabled={fixed}
               onCommit={(hex) => onSettings({ baseColor: hex })}
             />
 
@@ -513,11 +525,11 @@ function FontPicker({ label, value, options, fallback, onChange }) {
 // A swatch that opens the operating system's colour picker. The native input is
 // laid underneath at full size rather than hidden, so the picker opens where the
 // swatch is and the control stays keyboard-reachable.
-function ColourWell({ label, value, active, onChange }) {
+function ColourWell({ label, value, active, disabled, onChange }) {
   return (
     <span
       className={`relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-full ring-1 transition-transform ${
-        active ? "ring-2 ring-ink" : "ring-line hover:scale-110"
+        active ? "ring-2 ring-ink" : `ring-line ${disabled ? "" : "hover:scale-110"}`
       }`}
       style={{ background: value }}
     >
@@ -526,8 +538,11 @@ function ColourWell({ label, value, active, onChange }) {
         aria-label={label}
         title={label}
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        className={`absolute inset-0 h-full w-full opacity-0 ${
+          disabled ? "cursor-not-allowed" : "cursor-pointer"
+        }`}
       />
       {!active && (
         <Plus className="pointer-events-none h-3 w-3 text-page mix-blend-difference" strokeWidth={3} />
@@ -539,7 +554,7 @@ function ColourWell({ label, value, active, onChange }) {
 // Typing a hex is the fastest way in when you already have a brand colour, but
 // committing on every keystroke fights the person mid-type — so it only applies
 // once the value is complete.
-function HexField({ value, onCommit }) {
+function HexField({ value, disabled, onCommit }) {
   const [draft, setDraft] = useState(value);
   const [focused, setFocused] = useState(false);
 
@@ -556,6 +571,7 @@ function HexField({ value, onCommit }) {
   return (
     <input
       value={draft}
+      disabled={disabled}
       onChange={(e) => setDraft(e.target.value)}
       onFocus={() => setFocused(true)}
       onBlur={(e) => {

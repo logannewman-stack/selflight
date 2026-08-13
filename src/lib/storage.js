@@ -160,10 +160,19 @@ export function fallbackTitle(text) {
 
 export const DEFAULT_SETTINGS = {
   // Colour
-  theme: "paper",
+  //
+  // High contrast is what ships. It's the palette that's legible to the most
+  // people — 21:1 body text against 12.6:1 for Paper — and everything else is
+  // one click away in Appearance. Defaulting to the prettiest option and
+  // leaving legibility as a setting gets it backwards: the people who need
+  // this most are the least likely to go looking for it.
+  //
+  // Only new browsers are affected. loadSettings() merges what's stored over
+  // these, so anyone who already picked a palette keeps it.
+  theme: "contrast",
   matchSystem: false,
-  lightTheme: "paper",
-  darkTheme: "midnight",
+  lightTheme: "contrast",
+  darkTheme: "contrast-dark",
   accent: "palette",
   accentCustom: "",
   // A colour the whole interface is derived from. Empty means the palette's own.

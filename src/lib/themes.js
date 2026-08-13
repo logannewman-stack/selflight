@@ -35,6 +35,14 @@ const DARK_SYNTAX = {
   "syn-attr": "112 202 206"
 };
 
+// Secondary and hint text in the three light palettes was measured after the
+// fact and came in at 4.0–4.5:1 and 2.2–2.5:1 against their backgrounds — under
+// the WCAG floors of 4.5 and 3. The `muted` corrections are two or three units
+// and invisible; the `soft` ones are darker enough to notice, which is the
+// point: at 2.5:1 a placeholder is decoration, not text. themes.test.mjs
+// measures every palette against both backgrounds it sits on — the page and
+// the sidebar panel — because the first pass only checked the page and left
+// the sidebar's date headings a hair under the floor.
 export const BUILT_IN_THEMES = [
   {
     id: "paper",
@@ -49,8 +57,8 @@ export const BUILT_IN_THEMES = [
       raised: "255 255 255",
       line: "232 228 220",
       ink: "28 27 25",
-      muted: "122 116 106",
-      soft: "168 161 150",
+      muted: "115 110 100",
+      soft: "145 139 130",
       accent: "185 88 48",
       bubble: "28 27 25",
       bubbleInk: "252 251 249",
@@ -72,8 +80,8 @@ export const BUILT_IN_THEMES = [
       raised: "255 255 255",
       line: "224 227 234",
       ink: "21 23 28",
-      muted: "108 116 130",
-      soft: "158 166 179",
+      muted: "103 110 124",
+      soft: "132 139 150",
       accent: "44 104 180",
       bubble: "21 23 28",
       bubbleInk: "248 249 251",
@@ -95,8 +103,8 @@ export const BUILT_IN_THEMES = [
       raised: "252 252 251",
       line: "220 224 217",
       ink: "43 48 44",
-      muted: "112 121 114",
-      soft: "160 168 159",
+      muted: "101 109 103",
+      soft: "130 137 129",
       accent: "90 120 97",
       bubble: "43 48 44",
       bubbleInk: "244 246 243",
@@ -162,6 +170,13 @@ export const BUILT_IN_THEMES = [
     name: "High contrast",
     note: "Maximum separation between text and background, for low vision or bright rooms.",
     dark: false,
+    // These values are the palette, not a starting position. A main colour used
+    // to re-tint them and the accent picker used to replace the accent, which
+    // dropped body text from 21:1 to about 4.5:1 and secondary text below the
+    // AA floor entirely — while the card still said "High contrast ✓". A
+    // palette chosen for legibility has to be the one thing nothing else can
+    // quietly override. See applyTheme.
+    fixed: true,
     swatch: ["#FFFFFF", "#000000", "#0B44C4"],
     vars: {
       page: "255 255 255",
@@ -171,7 +186,7 @@ export const BUILT_IN_THEMES = [
       line: "26 26 26",
       ink: "0 0 0",
       muted: "56 56 56",
-      soft: "84 84 84",
+      soft: "82 82 82",
       accent: "11 68 196",
       bubble: "0 0 0",
       bubbleInk: "255 255 255",
@@ -185,6 +200,42 @@ export const BUILT_IN_THEMES = [
       "syn-num": "150 68 0",
       "syn-fn": "11 68 196",
       "syn-attr": "0 96 104"
+    }
+  },
+  {
+    id: "contrast-dark",
+    name: "High contrast dark",
+    note: "The same separation, inverted. For low vision in a dark room, and the dark half of the pair.",
+    dark: true,
+    // Without this there was no high-contrast option in dark mode at all, and
+    // "Match system" had nothing to put in the dark slot — so turning it on
+    // dropped anyone relying on high contrast back to a soft palette overnight.
+    fixed: true,
+    swatch: ["#000000", "#FFFFFF", "#7FC4FF"],
+    vars: {
+      page: "0 0 0",
+      panel: "18 18 18",
+      surface: "0 0 0",
+      raised: "26 26 26",
+      line: "224 224 224",
+      ink: "255 255 255",
+      muted: "216 216 216",
+      soft: "178 178 178",
+      accent: "127 196 255",
+      bubble: "255 255 255",
+      bubbleInk: "0 0 0",
+      code: "20 20 20",
+      // A ring rather than a blur: a soft shadow is invisible against black,
+      // which is how a "raised" surface stops looking raised.
+      "shadow-sm": "0 0 0 1px rgba(255, 255, 255, 0.9)",
+      "shadow-md": "0 0 0 1px rgba(255, 255, 255, 0.9)",
+      "shadow-lg": "0 0 0 2px rgba(255, 255, 255, 0.9)",
+      "syn-key": "255 158 190",
+      "syn-str": "142 226 158",
+      "syn-com": "178 178 178",
+      "syn-num": "255 190 118",
+      "syn-fn": "127 196 255",
+      "syn-attr": "126 224 228"
     }
   }
 ];
@@ -298,6 +349,11 @@ export function accentFor(settings = {}) {
 // they're structural and a tinted app still needs code to be readable.
 function tinted(palette, baseColor) {
   if (!baseColor) return palette;
+  // A fixed palette is exempt. Tinting derives every surface and text colour
+  // from one background, which is the right behaviour for a palette chosen for
+  // its look and exactly the wrong one for a palette chosen because it can be
+  // read — the derivation lands around 4.5:1 wherever it starts.
+  if (palette.fixed) return palette;
 
   const { dark, vars } = tintFrom(baseColor);
   return {
@@ -343,8 +399,12 @@ export function applyTheme(settings, { prefersDark = false, themes, override } =
   // A custom palette owns its accent outright; the accent picker only overrides
   // the built-ins, whose accent is a default rather than a decision. A colour
   // picked by hand always wins — it can't be anything but deliberate.
+  //
+  // A fixed palette owns its accent too. Sky blue on white is 2.4:1, which is
+  // fine as taste and unreadable as an accent, and the palette it was applied
+  // to was the one picked precisely so things could be read.
   const accent = accentFor(settings);
-  if (accent && (!palette.custom || settings.accent === "custom")) {
+  if (accent && !palette.fixed && (!palette.custom || settings.accent === "custom")) {
     root.style.setProperty("--accent", accent);
   }
 
