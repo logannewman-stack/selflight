@@ -6,6 +6,7 @@
 
 import { provider } from "./provider.js";
 import { configured as canTranscribe } from "./transcribe.js";
+import { catalogue } from "./_catalogue.js";
 
 export default async function handler(req, res) {
   const model = provider();
@@ -26,7 +27,12 @@ export default async function handler(req, res) {
       searchAlwaysOn: model.name === "Perplexity",
       // Whether a browser with no speech recognition of its own can still
       // dictate, by sending audio here.
-      transcribe: canTranscribe()
+      transcribe: canTranscribe(),
+      // Services someone can connect by signing in, and for the rest, which
+      // variable is missing. No secret is in this — a variable's name isn't
+      // one, and the alternative is a Connect button that fails after the
+      // redirect with nothing to say why.
+      services: catalogue()
     })
   );
 }

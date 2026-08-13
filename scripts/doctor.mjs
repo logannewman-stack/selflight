@@ -11,6 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import { RECENT_COLUMNS } from "../api/doctor.js";
 
 const root = path.resolve(import.meta.dirname, "..");
 const target = process.argv[2];
@@ -259,18 +260,25 @@ async function checkSupabase() {
   ok(`All ${TABLES.length} tables exist`);
 
   // Columns the app gained after the first version of the schema. A database
-  // created from an earlier one fails every message read and write — which is
-  // exactly the "my history doesn't work" report.
+  // created from an earlier one fails every read and write that touches them —
+  // which is exactly the "my history doesn't work" report.
   const recent = [];
-  for (const column of ["sources", "thinking", "thought_ms"]) {
-    const { error } = await admin.from("messages").select(column).limit(0);
-    if (error) recent.push(column);
+  const repairs = new Set();
+
+  for (const [table, column, migration] of RECENT_COLUMNS) {
+    const { error } = await admin.from(table).select(column).limit(0);
+    if (error) {
+      recent.push(`${table}.${column}`);
+      repairs.add(migration);
+    }
   }
 
   if (recent.length) {
     bad(
-      `public.messages is missing ${recent.join(", ")} — this database predates them`,
-      "Supabase → SQL Editor → run supabase/migrations/0002_repair.sql. Safe to run twice, and it leaves your chats alone."
+      `This database is missing ${recent.join(", ")} — it predates them`,
+      `Supabase → SQL Editor → run ${[...repairs]
+        .map((m) => `supabase/migrations/${m}`)
+        .join(" then ")}. Safe to run twice, and they leave your data alone.`
     );
   } else {
     ok("Schema is current", "every column the app reads is there");

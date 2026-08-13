@@ -111,6 +111,23 @@ export default function App() {
     capabilities().then((next) => next && setCan(next));
   }, []);
 
+  // Coming back from a provider's sign-in screen. The callback can't render
+  // anything — it's a redirect — so it says how it went in the query string and
+  // this puts the person back where they pressed the button.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const failed = params.get("connectError");
+    if (!connected && !failed) return;
+
+    setSettingsTab("connectors");
+    setSection("settings");
+    setCommand({ say: failed || `Connected to ${connected}.`, text: null, before: null });
+
+    // Leave the address bar clean, so a refresh doesn't repeat the message.
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
   // A fatal fault stays put; anything transient is replaced by whatever came
   // last, so one bad moment doesn't pin an old message to the screen.
   useEffect(() => {
@@ -825,12 +842,17 @@ export default function App() {
                       Undo
                     </button>
                   )}
-                  <button
-                    onClick={sendAnyway}
-                    className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-muted transition-colors hover:text-ink"
-                  >
-                    Send as a message
-                  </button>
+                  {/* Only when there's something to send — this bar also
+                      carries the result of coming back from a sign-in, which
+                      was never a message. */}
+                  {command.text && (
+                    <button
+                      onClick={sendAnyway}
+                      className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-muted transition-colors hover:text-ink"
+                    >
+                      Send as a message
+                    </button>
+                  )}
                 </div>
               )}
 

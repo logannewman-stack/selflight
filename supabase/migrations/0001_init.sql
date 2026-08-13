@@ -88,10 +88,23 @@ create table if not exists public.connectors (
   url text not null,
   enabled boolean not null default true,
   has_token boolean not null default false,
+  -- Set when the row came from signing into a service ('github', 'vercel',
+  -- 'linear', 'notion'); null for a server URL somebody typed in. That's how
+  -- the two kinds tell themselves apart in the interface.
+  provider text,
+  -- Whose account, for display only: a GitHub login, a Notion workspace name.
+  account text,
   created_at timestamptz not null default now()
 );
 
 create index if not exists connectors_user_idx on public.connectors (user_id);
+
+-- One connection per service per person, so signing in again replaces the
+-- token rather than leaving two rows answering for the same account. Partial,
+-- because hand-added connectors have no provider and there can be any number.
+create unique index if not exists connectors_user_provider_idx
+  on public.connectors (user_id, provider)
+  where provider is not null;
 
 -- Tokens are deliberately a separate table with RLS on and *no policies*.
 -- Policies are what grant access under RLS, so with none defined the anon and
@@ -102,6 +115,11 @@ create table if not exists public.connector_secrets (
   connector_id uuid primary key references public.connectors (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
   token text not null,
+  -- An OAuth exchange can hand back a token that expires and a second one that
+  -- renews it. A refresh token is at least as sensitive as the access token,
+  -- so it lives in exactly the same unreadable place.
+  refresh_token text,
+  expires_at timestamptz,
   updated_at timestamptz not null default now()
 );
 

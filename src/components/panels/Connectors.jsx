@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Globe, Link2, Plus, Trash2 } from "lucide-react";
+import { Check, Globe, Link2, Plus, Trash2 } from "lucide-react";
 import { Button, Field, Section, Toggle } from "../ui.jsx";
+import { connectService } from "../../lib/api.js";
 
 export default function Connectors({
   settings,
@@ -15,6 +16,27 @@ export default function Connectors({
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", url: "", token: "" });
   const [problem, setProblem] = useState(null);
+  // Which Connect button was pressed, so it can say so while the redirect is
+  // still being arranged.
+  const [starting, setStarting] = useState(null);
+  const [startProblem, setStartProblem] = useState(null);
+
+  const services = can.services || [];
+  // A connector created by signing in belongs to its service's row above, not
+  // to the hand-added list below — otherwise every connection appears twice.
+  const connectedTo = new Map(connectors.filter((c) => c.provider).map((c) => [c.provider, c]));
+  const manual = connectors.filter((c) => !c.provider);
+
+  const connect = async (id) => {
+    setStarting(id);
+    setStartProblem(null);
+    const failed = await connectService(id);
+    if (failed) {
+      setStartProblem({ id, message: failed });
+      setStarting(null);
+    }
+    // On success the browser has already left for the provider.
+  };
 
   const submit = () => {
     const name = form.name.trim();
@@ -59,8 +81,108 @@ export default function Connectors({
       </Section>
 
       <Section
+        title="Your accounts"
+        hint="Sign in once and Selflight can work with them in a conversation."
+      >
+        {!signedIn && (
+          <div className="rounded-xl border border-dashed border-line px-3.5 py-5 text-center">
+            <Link2 className="mx-auto mb-2 h-4 w-4 text-soft" strokeWidth={1.8} />
+            <p className="text-sm leading-relaxed text-muted">
+              Sign in to Selflight first. A connected account belongs to a person, so there has to
+              be one to attach it to.
+            </p>
+          </div>
+        )}
+
+        {signedIn &&
+          services.map((service) => {
+            const linked = connectedTo.get(service.id);
+            return (
+              <div key={service.id} className="rounded-xl border border-line bg-surface p-3">
+                <div className="flex items-start gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-1.5 text-base font-medium">
+                      {service.name}
+                      {linked && <Check className="h-3.5 w-3.5 text-accent" strokeWidth={2.6} />}
+                    </p>
+                    <p className="mt-0.5 text-sm leading-relaxed text-muted">
+                      {linked
+                        ? `Connected${linked.account ? ` as ${linked.account}` : ""}.`
+                        : service.blurb}
+                    </p>
+                  </div>
+
+                  {linked ? (
+                    <button
+                      onClick={() => onRemove(linked.id)}
+                      className="shrink-0 rounded-md px-1.5 py-1 text-sm font-medium text-muted transition-colors hover:text-accent"
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    service.ready && (
+                      <Button onClick={() => connect(service.id)} disabled={starting === service.id}>
+                        {starting === service.id ? "Opening…" : "Connect"}
+                      </Button>
+                    )
+                  )}
+                </div>
+
+                {/* A service nobody registered an app for can't be connected by
+                    anyone, so it says which variable is missing rather than
+                    offering a button that fails after the redirect. */}
+                {!service.ready && !linked && (
+                  <p className="mt-2 border-t border-line pt-2 text-sm leading-relaxed text-muted">
+                    Not set up on this deployment. Register an app at{" "}
+                    <a
+                      href={service.register}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-ink underline decoration-line underline-offset-2"
+                    >
+                      {service.name}
+                    </a>
+                    , then add{" "}
+                    {service.missing.map((name, i) => (
+                      <React.Fragment key={name}>
+                        {i > 0 && " and "}
+                        <code className="font-mono text-2xs">{name}</code>
+                      </React.Fragment>
+                    ))}{" "}
+                    in Vercel and redeploy.
+                  </p>
+                )}
+
+                {linked && (
+                  <div className="mt-2.5 border-t border-line pt-2.5">
+                    <Toggle
+                      label={linked.enabled ? "Active" : "Paused"}
+                      checked={linked.enabled}
+                      onChange={(v) => onUpdate(linked.id, { enabled: v })}
+                    />
+                  </div>
+                )}
+
+                {startProblem?.id === service.id && (
+                  <p className="mt-2 text-sm text-accent">{startProblem.message}</p>
+                )}
+              </div>
+            );
+          })}
+
+        {signedIn && can.connectors === false && (
+          <p className="text-sm leading-relaxed text-muted">
+            Connecting works now and the token is stored safely, but{" "}
+            {can.provider || "the current model"} can't call these tools yet — that needs a model
+            with tool use. Set <code className="font-mono text-2xs">ANTHROPIC_API_KEY</code> and a
+            connected account becomes usable in the conversation immediately.
+          </p>
+        )}
+      </Section>
+
+      <Section
         title="MCP connectors"
-        hint="Connect a remote MCP server and Selflight can use its tools mid-conversation."
+        hint="Any other remote MCP server, by URL."
       >
         {can.connectors === false && (
           <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
@@ -74,7 +196,7 @@ export default function Connectors({
           </div>
         )}
 
-        {connectors.length === 0 && !adding && can.connectors !== false && (
+        {manual.length === 0 && !adding && can.connectors !== false && (
           <div className="rounded-xl border border-dashed border-line px-3.5 py-5 text-center">
             <Link2 className="mx-auto mb-2 h-4 w-4 text-soft" strokeWidth={1.8} />
             <p className="text-sm leading-relaxed text-muted">
@@ -83,7 +205,7 @@ export default function Connectors({
           </div>
         )}
 
-        {connectors.map((connector) => (
+        {manual.map((connector) => (
           <div key={connector.id} className="rounded-xl border border-line bg-surface p-3">
             <div className="flex items-start gap-2">
               <Globe className="mt-0.5 h-4 w-4 shrink-0 text-soft" strokeWidth={2} />

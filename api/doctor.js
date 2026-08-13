@@ -23,6 +23,25 @@ const TABLES = [
 
 const PRIVATE_TABLES = ["chats", "messages", "user_settings", "connector_secrets"];
 
+// Columns the app gained after the first version of the schema, each with the
+// migration that adds it. A database created before one of these fails every
+// read and write that touches it while its tables and policies all look
+// correct — which is what "the history doesn't work" turned out to mean.
+//
+// Shared with scripts/doctor.mjs, and asserted against the migrations
+// themselves in doctor.test.mjs, so a column added to the schema without being
+// added here fails a test rather than a user.
+export const RECENT_COLUMNS = [
+  ["messages", "sources", "0002_repair.sql"],
+  ["messages", "thinking", "0002_repair.sql"],
+  ["messages", "thought_ms", "0002_repair.sql"],
+  ["connectors", "has_token", "0002_repair.sql"],
+  ["connectors", "provider", "0003_connections.sql"],
+  ["connectors", "account", "0003_connections.sql"],
+  ["connector_secrets", "refresh_token", "0003_connections.sql"],
+  ["connector_secrets", "expires_at", "0003_connections.sql"]
+];
+
 export default async function handler(req, res) {
   const live = /[?&]live=1/.test(req.url || "");
 
@@ -140,21 +159,22 @@ async function checkAccounts() {
 
   if (report.state !== "ok") return report;
 
-  // Columns the app gained after the first version of the schema. A database
-  // created from an earlier one fails every message read and write while its
-  // tables and policies all look correct — which is what "the history doesn't
-  // work" turns out to mean.
-  //
-  // All three, not just the first: a reply is written with every column at once,
-  // so any one of them missing fails the whole write. Checking `sources` alone
-  // let the other two go missing behind a green tick.
+  // Every one of them, not just the first: a row is written with all its
+  // columns at once, so any single absence fails the whole write. Checking
+  // `sources` alone once let the other two go missing behind a green tick.
   const missingColumns = [];
-  for (const column of ["sources", "thinking", "thought_ms"]) {
-    const { error } = await admin.from("messages").select(column).limit(0);
-    if (error) missingColumns.push(column);
+  const repairWith = new Set();
+
+  for (const [table, column, migration] of RECENT_COLUMNS) {
+    const { error } = await admin.from(table).select(column).limit(0);
+    if (error) {
+      missingColumns.push(`${table}.${column}`);
+      repairWith.add(migration);
+    }
   }
 
   report.missingColumns = missingColumns;
+  report.repairWith = [...repairWith];
   report.schemaCurrent = missingColumns.length === 0;
   if (missingColumns.length) report.state = "broken";
 

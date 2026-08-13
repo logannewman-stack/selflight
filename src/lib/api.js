@@ -93,6 +93,31 @@ export async function capabilities() {
   }
 }
 
+/**
+ * Begins signing into a service. Returns null on success — the browser is on
+ * its way to the provider by then — or a message to show if it can't start.
+ *
+ * The redirect is deliberately not a plain link: the server has to know who is
+ * asking before it hands out a state cookie, and a link carries no session.
+ */
+export async function connectService(provider) {
+  try {
+    const res = await fetch("/api/oauth?action=start", {
+      method: "POST",
+      headers: await headers(),
+      body: JSON.stringify({ provider })
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.url) return data?.error || "Couldn't start that sign-in.";
+
+    window.location.assign(data.url);
+    return null;
+  } catch {
+    return "Couldn't reach the server to start that sign-in.";
+  }
+}
+
 export async function generateTitle(messages) {
   try {
     const res = await fetch(ENDPOINT, {

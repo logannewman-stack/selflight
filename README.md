@@ -180,6 +180,42 @@ same split as an app and its model, so the version can move without renaming the
 every time it improves — and so nobody has to learn what `sonar-reasoning-pro` is to
 understand what they're talking to. Both live in `src/lib/brand.js`.
 
+## Saying it instead of clicking
+
+Type — or dictate — `make the background sage`, `open settings`, `bigger text`,
+`use Lora`, `be more direct`. It happens immediately, and no message is sent.
+
+Nothing about this is voice-specific. The microphone writes into the composer, so
+anything you can type you can say, and both take the same path through
+`src/lib/commands.js`.
+
+It's parsed **locally**, not by asking the model. That's three things at once:
+instant where a round trip is a second of watching nothing happen, free where
+every parsed message would otherwise cost about 2.4¢, and deterministic, so
+"open settings" always opens settings rather than usually.
+
+The real design problem is the false positive. "Change the tone of this email to
+be more direct" contains every word the tone rule looks for, and swallowing it
+would cost someone their actual question. Three things hold that down:
+
+- Rules only fire on a known target, and only with something asking for it.
+- Questions are never acted on, nor are sentences aimed at a document — a
+  demonstrative in front of a piece of writing (`this email`, `my bio`) means the
+  work, not the window it's shown in.
+- Since neither guard is perfect, every command shows what it changed with
+  **Undo** and **Send as a message** beside it. A wrong guess costs one press.
+
+The false positives in `commands.test.mjs` were found by running realistic
+messages through the parser rather than by imagining them. "I need to lose
+weight" moved the font weight. "The paper I read said dark mode saves battery"
+switched themes. Both are regression tests now.
+
+```bash
+npm test                  # the parser, including everything it must leave alone
+npm run verify:commands   # a real browser: pixels change, no message is sent,
+                          # the model isn't called, Undo restores, questions get through
+```
+
 ## Design system
 
 Worth knowing before you change styles, because these are decisions rather than defaults.
@@ -211,6 +247,58 @@ honoured OS preference.
 serving the previous CSS while the production build is already correct. If a style change
 appears to do nothing, `rm -rf node_modules/.vite` and restart before assuming the code is
 wrong.
+
+## Connecting an account
+
+Settings → Connectors → **Connect**. Somebody signs into GitHub, Vercel, Linear
+or Notion, comes back, and Selflight holds a token for that account. They never
+have to find an API key.
+
+The one-time cost is yours, not theirs: every provider requires the *application*
+to be registered before it can act for anyone. That's about five minutes per
+service, done once, and then it works for everybody who uses your deployment.
+
+1. Register an app with the provider — the panel links straight to the page.
+2. Set the callback URL to `https://your-app.vercel.app/api/oauth?action=callback`.
+   It has to match exactly; a trailing slash is a different URL to most of them.
+3. Put the client id and secret in Vercel and redeploy:
+
+   | Service | Variables |
+   | --- | --- |
+   | GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` |
+   | Vercel | `VERCEL_CLIENT_ID`, `VERCEL_CLIENT_SECRET`, `VERCEL_INTEGRATION_SLUG` |
+   | Linear | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET` |
+   | Notion | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` |
+
+A service with nothing set doesn't appear as a button you can press and watch
+fail — it appears as a row naming the variables it's waiting for and linking to
+where to get them. Add one at a time; the others carry on working.
+
+Run [`supabase/migrations/0003_connections.sql`](supabase/migrations/0003_connections.sql)
+if your database predates this. `npm run doctor` says whether it does, and names
+the columns.
+
+**Worth knowing before you set any of it up.** A connected account reaches the
+model through MCP, and MCP is an Anthropic protocol — Perplexity's API has no
+equivalent. On Perplexity the sign-in works and the token is stored safely, but
+nothing can call it yet. Set `ANTHROPIC_API_KEY` and every connected account
+becomes usable in the conversation immediately. The Connectors panel says so too,
+rather than leaving you to find out.
+
+### How the return leg knows who you are
+
+The awkward part of OAuth in a single-page app is that the provider sends the
+browser back with a plain redirect, which carries no session. Putting the user id
+in the URL would let anyone attach a connection to anyone's account.
+
+So the *start* of the flow — which is authenticated — writes the user id into a
+ten-minute `HttpOnly` cookie signed with the service-role key, and the callback
+trusts nothing else. A forged or edited cookie fails the signature check; so does
+one signed with a different deployment's key. `api/oauth.test.mjs` asserts both,
+along with the truncated and empty-signature cases.
+
+The token that comes back never reaches a browser. It goes straight into
+`connector_secrets`, described below.
 
 ## Connectors: read this before adding one
 

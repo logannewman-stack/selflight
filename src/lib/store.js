@@ -297,16 +297,20 @@ function remoteStore(user) {
       async list() {
         const { data, error } = await supabase
           .from("connectors")
-          .select("id, name, url, enabled, has_token")
+          .select("id, name, url, enabled, has_token, provider, account")
           .order("created_at");
         fail("loading connectors", error);
         // `token` is never sent back — the row only admits that one exists.
+        // `provider` and `account` are how a connection made by signing in
+        // tells itself apart from a server URL somebody typed.
         return (data || []).map((row) => ({
           id: row.id,
           name: row.name,
           url: row.url,
           enabled: row.enabled,
           hasToken: row.has_token,
+          provider: row.provider || null,
+          account: row.account || null,
           token: ""
         }));
       },

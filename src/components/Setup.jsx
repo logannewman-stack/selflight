@@ -192,22 +192,29 @@ function accountsHealthy(accounts) {
 }
 
 function Accounts({ accounts, cap }) {
-  // Checked before anything else: a schema behind the app fails every message
-  // read and write while the tables and policies all look fine.
+  // Checked before anything else: a schema behind the app fails every read and
+  // write that touches a missing column while the tables and policies all look
+  // fine. For `messages` that means chats in the sidebar that open empty.
   if (accounts.missingColumns?.length) {
     return (
       <Problem urgent>
         <p className="font-semibold">This database is behind the app.</p>
         <p className="mt-1.5">
-          public.messages is missing {accounts.missingColumns.join(", ")}, so messages can't be
-          saved or loaded — chats appear in the sidebar but open empty.
+          It's missing {accounts.missingColumns.join(", ")}. Anything written through those columns
+          fails — a missing <code className="font-mono text-2xs">messages</code> column is why chats
+          appear in the sidebar but open empty.
         </p>
         <p className="mt-2">
           Open Supabase → <b>SQL Editor</b> and run{" "}
-          <code className="rounded bg-codebg px-1 py-0.5 font-mono text-2xs">
-            supabase/migrations/0002_repair.sql
-          </code>
-          , then press <b>Check again</b> below. It's safe to run twice and won't touch your chats.
+          {(accounts.repairWith || ["0002_repair.sql"]).map((file, i) => (
+            <React.Fragment key={file}>
+              {i > 0 && ", then "}
+              <code className="rounded bg-codebg px-1 py-0.5 font-mono text-2xs">
+                supabase/migrations/{file}
+              </code>
+            </React.Fragment>
+          ))}
+          , then press <b>Check again</b> below. They're safe to run twice and won't touch your data.
         </p>
       </Problem>
     );
@@ -338,22 +345,9 @@ function Accounts({ accounts, cap }) {
         {accounts.tokensThisMonth.toLocaleString()} tokens used this month · limit{" "}
         {cap ? `${cap.toLocaleString()} per person per month` : "none set"}
       </p>
-      {accounts.schemaCurrent === false && (
-        <Problem urgent>
-          <p className="font-semibold">This database is behind the app.</p>
-          <p className="mt-1.5">
-            public.messages is missing {(accounts.missingColumns || []).join(", ")}, so messages
-            can't be saved or loaded — chats appear in the sidebar but open empty.
-          </p>
-          <p className="mt-2">
-            Open Supabase → <b>SQL Editor</b> and run{" "}
-            <code className="rounded bg-codebg px-1 py-0.5 font-mono text-2xs">
-              supabase/migrations/0002_repair.sql
-            </code>
-            . It's safe to run twice and won't touch your existing chats.
-          </p>
-        </Problem>
-      )}
+      {/* A behind-schema database is reported at the top of this component and
+          returns early, so there is deliberately no second copy of that warning
+          here — the one that used to be was unreachable. */}
     </>
   );
 }
