@@ -118,6 +118,36 @@ export async function connectService(provider) {
   }
 }
 
+// Short and fixed rather than a free-text box: "what went wrong?" gets filled
+// in by roughly nobody, and four buttons get pressed. Mirrors REASONS in
+// api/feedback.js, which is what actually validates them.
+export const REPORT_REASONS = {
+  wrong: "Wrong",
+  invented: "Made something up",
+  unhelpful: "Didn't answer",
+  refused: "Wouldn't help"
+};
+
+/**
+ * Reports a reply that was wrong. Deliberately sends no reply text and no
+ * question — only the shape of the turn, which is what makes a report
+ * actionable without making it a transcript.
+ *
+ * Fails silently: someone taking the trouble to flag a bad answer should not
+ * then be shown an error about the flag.
+ */
+export async function reportReply(reason, shape = {}) {
+  try {
+    await fetch("/api/feedback", {
+      method: "POST",
+      headers: await headers(),
+      body: JSON.stringify({ reason, ...shape })
+    });
+  } catch {
+    // Nothing useful to say, and nothing the person could do about it.
+  }
+}
+
 export async function generateTitle(messages) {
   try {
     const res = await fetch(ENDPOINT, {

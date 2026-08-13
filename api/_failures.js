@@ -19,8 +19,20 @@
 import crypto from "node:crypto";
 import { db, hasSupabase } from "./_supabase.js";
 
-export const KINDS = ["model", "connector", "store", "transcribe", "oauth", "unknown"];
-export const SEVERITIES = ["error", "degraded", "unknown"];
+export const KINDS = [
+  "model",
+  "connector",
+  "store",
+  "transcribe",
+  "oauth",
+  // The assistant said it didn't know. Not a bug — see admittedNotKnowing.
+  "unknown",
+  // A person said the reply was wrong. The only source for a failure the
+  // server has no way to detect, because nothing crashed.
+  "feedback"
+];
+
+export const SEVERITIES = ["error", "degraded", "unknown", "reported"];
 
 /**
  * Reduces a failure to what makes it *that* failure rather than this instance

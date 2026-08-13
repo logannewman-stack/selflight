@@ -7,11 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test api/*.test.mjs src/lib/*.test.mjs",
+    "test": "node --test api/*.test.mjs src/lib/*.test.mjs evals/*.test.mjs",
     "verify:appearance": "node verify/appearance.mjs",
     "test:schema": "./supabase/tests/run.sh",
     "doctor": "node scripts/doctor.mjs",
-    "verify:commands": "node verify/commands.mjs"
+    "verify:commands": "node verify/commands.mjs",
+    "eval": "node evals/run.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

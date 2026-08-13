@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, ChevronRight, Copy, ExternalLink, RotateCw } from "lucide-react";
+import { Check, ChevronRight, Copy, ExternalLink, RotateCw, ThumbsDown } from "lucide-react";
+import { REPORT_REASONS, reportReply } from "../lib/api.js";
 import CodeBlock from "./CodeBlock.jsx";
 
 // react-markdown hands `pre` its `code` child as an element, so the fenced
@@ -171,6 +172,10 @@ export default function Message({ message, streaming, onRegenerate, options = {}
               Retry
             </Action>
           )}
+          {/* The failure log catches crashes on its own. A reply that streamed
+              fine, saved fine, and was simply wrong is invisible to the server —
+              this is the only thing that can see it. */}
+          <ReportButton message={message} options={options} />
         </div>
       )}
     </div>
@@ -300,6 +305,67 @@ function CopyButton({ text }) {
         <Copy className="h-3.5 w-3.5" strokeWidth={2} />
       )}
       {copied ? "Copied" : "Copy"}
+    </Action>
+  );
+}
+
+// Reporting a bad reply, in one press and then one more to say why.
+//
+// The reasons are fixed rather than free text on purpose: a box asking "what
+// went wrong?" gets filled in by roughly nobody, and four buttons get pressed.
+// "It made something up" being its own reason is the whole point — that's the
+// failure the product cares most about and the one nothing else can detect.
+function ReportButton({ message, options }) {
+  const [open, setOpen] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const send = async (reason) => {
+    setOpen(false);
+    setSent(true);
+    // The reply itself is never sent — only its shape. See api/feedback.js.
+    await reportReply(reason, {
+      depth: options.depth,
+      hadSources: Boolean(message.sources?.length),
+      hadThinking: Boolean(message.thinking)
+    });
+  };
+
+  if (sent) {
+    return (
+      <span className="flex items-center gap-1.5 px-2 py-1 font-sans text-sm font-medium text-muted">
+        <Check className="h-3.5 w-3.5 text-accent" strokeWidth={2.4} />
+        Noted — thank you
+      </span>
+    );
+  }
+
+  if (open) {
+    return (
+      <span className="flex flex-wrap items-center gap-0.5">
+        {Object.entries(REPORT_REASONS).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => send(id)}
+            className="rounded-lg px-2 py-1 font-sans text-sm font-medium text-muted transition-colors hover:bg-panel hover:text-ink"
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          onClick={() => setOpen(false)}
+          aria-label="Cancel"
+          className="rounded-lg px-2 py-1 font-sans text-sm text-soft transition-colors hover:text-ink"
+        >
+          Cancel
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <Action onClick={() => setOpen(true)} label="Report a problem with this reply">
+      <ThumbsDown className="h-3.5 w-3.5" strokeWidth={2} />
+      Report
     </Action>
   );
 }

@@ -86,8 +86,26 @@ test("a fingerprint is short, stable and hex", () => {
 test("the vocabularies are closed sets", () => {
   // Both are checked against these before insert, so a typo becomes 'unknown'
   // and 'error' rather than a row nothing will ever query.
-  assert.deepEqual(KINDS, ["model", "connector", "store", "transcribe", "oauth", "unknown"]);
-  assert.deepEqual(SEVERITIES, ["error", "degraded", "unknown"]);
+  assert.deepEqual(KINDS, [
+    "model",
+    "connector",
+    "store",
+    "transcribe",
+    "oauth",
+    "unknown",
+    "feedback"
+  ]);
+  assert.deepEqual(SEVERITIES, ["error", "degraded", "unknown", "reported"]);
+});
+
+test("the two entries that aren't bugs are in the vocabulary", () => {
+  // 'unknown' is the assistant saying so, 'feedback' is a person saying so.
+  // Both are evidence of a gap; neither is an exception. If either fell out of
+  // these lists it would be silently rewritten to 'model'/'error' on insert and
+  // land in the repair workflow as a crash that never happened.
+  assert.ok(KINDS.includes("unknown"));
+  assert.ok(KINDS.includes("feedback"));
+  assert.ok(SEVERITIES.includes("reported"));
 });
 
 /* ------------------------------ not knowing ------------------------------ */
