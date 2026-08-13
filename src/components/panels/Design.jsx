@@ -19,6 +19,7 @@ import {
 import { MONO_FONTS, TEXT_FONTS, fontById, loadFonts } from "../../lib/fonts.js";
 import { contrast, hexToTriplet, tintFrom, tripletToHex } from "../../lib/palettes.js";
 import { DEFAULT_SETTINGS } from "../../lib/storage.js";
+import { EXAMPLES } from "../../lib/commands.js";
 import { Area, Button, Choice, Section, Toggle } from "../ui.jsx";
 
 // Only appearance keys reset — tone, instructions, and connectors are content,
@@ -105,6 +106,28 @@ export default function Design({
 
   return (
     <div className="thin-scrollbar h-full overflow-y-auto">
+      {/* Nobody discovers a feature they were never told about, and this one has
+          no button to stumble across. It goes first because it makes most of
+          what's below it optional. */}
+      <Section title="Or just say it" hint="Type or speak any of these into the composer.">
+        <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
+          <ul className="space-y-1.5">
+            {EXAMPLES.map(({ say, does }) => (
+              <li key={say} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <span className="rounded-md bg-codebg px-1.5 py-0.5 font-mono text-2xs text-ink">
+                  {say}
+                </span>
+                <span className="text-muted">{does}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2.5 text-sm leading-relaxed text-muted">
+            Anything read as an instruction says what it changed above the composer, with Undo
+            next to it — and a way to send it as a message instead, if that wasn't what you meant.
+          </p>
+        </div>
+      </Section>
+
       <Section
         title="Colour packages"
         hint="Pick one, or build your own from any of these and share it as a file."

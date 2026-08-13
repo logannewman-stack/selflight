@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Globe, Info, Link2, PanelLeft, Plus, RotateCw, Search, Sparkles } from "lucide-react";
+import { ArrowDown, Globe, Info, Link2, PanelLeft, Plus, RotateCw, Search, Sparkles, Wand2 } from "lucide-react";
 import Sidebar from "./components/Sidebar.jsx";
 import Message from "./components/Message.jsx";
 import Composer from "./components/Composer.jsx";
@@ -14,6 +14,7 @@ import { BUILT_IN_THEMES, applyFonts, applyTheme, resolvePalette } from "./lib/t
 import * as fontCatalogue from "./lib/fonts.js";
 import { draftFrom, importPalette, refreshSwatch } from "./lib/palettes.js";
 import { modeLabel } from "./lib/brand.js";
+import { parseCommand } from "./lib/commands.js";
 import { fallbackTitle, lastChat, loadSettings, rememberChat } from "./lib/storage.js";
 import { onStoreError, storeFor } from "./lib/store.js";
 import { hasSupabase, supabase } from "./lib/supabase.js";
@@ -63,6 +64,10 @@ export default function App() {
   // A database that can't store what it's given. Held until dismissed, because
   // the alternative is losing work with nothing on screen to explain it.
   const [storeFault, setStoreFault] = useState(null);
+  // The last thing the composer was read as an instruction rather than a
+  // message. Holds what it did, what was typed, and the settings from before —
+  // so it can be taken back, or sent as a message after all.
+  const [command, setCommand] = useState(null);
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
@@ -285,6 +290,47 @@ export default function App() {
     setSection(null);
   }, []);
 
+  /* ------------------------- saying it instead of clicking ------------------ */
+
+  // Applies an instruction read out of the composer. Voice needs nothing extra:
+  // dictation writes into the same box, so a spoken sentence arrives here by the
+  // same route a typed one does.
+  const runCommand = useCallback(
+    (cmd, text) => {
+      if (cmd.patch) setSettings((s) => ({ ...s, ...cmd.patch }));
+
+      if (cmd.open) {
+        setDraft(null);
+        if (cmd.open.tab) setSettingsTab(cmd.open.tab);
+        setSection(cmd.open.section);
+      }
+
+      if (cmd.act === "newChat") newChat();
+      if (cmd.act === "close") closePanel();
+      if (cmd.act === "signOut") signOut();
+
+      // `before` is only kept for changes worth taking back in one press. A
+      // panel that opened can be closed again; a repainted app is harder to
+      // reverse by hand once you've forgotten what it looked like.
+      setCommand({ say: cmd.say, text, before: cmd.patch ? settings : null });
+    },
+    [settings, newChat, closePanel, signOut]
+  );
+
+  const undoCommand = useCallback(() => {
+    setCommand((c) => {
+      if (c?.before) setSettings(c.before);
+      return null;
+    });
+  }, []);
+
+  // A confirmation, not a state. It goes away on its own.
+  useEffect(() => {
+    if (!command) return;
+    const timer = setTimeout(() => setCommand(null), 12000);
+    return () => clearTimeout(timer);
+  }, [command]);
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") {
@@ -384,9 +430,21 @@ export default function App() {
     return { final, failed };
   };
 
-  const send = async (raw) => {
+  const send = async (raw, { asCommand = true } = {}) => {
     const text = (raw ?? input).trim();
     if (!text || streaming) return;
+
+    // Checked before the model is ever contacted: an instruction to the
+    // interface is answered by the interface, instantly and for nothing.
+    if (asCommand) {
+      const cmd = parseCommand(text, { settings, themes });
+      if (cmd) {
+        runCommand(cmd, text);
+        setInput("");
+        return;
+      }
+    }
+    setCommand(null);
 
     const base = [...messages, { role: "user", text }];
     setInput("");
@@ -417,6 +475,16 @@ export default function App() {
         setChats(await store.chats.list());
       }
     }
+  };
+
+  // The escape hatch that lets the parser be useful without being risky: if it
+  // read a real message as an instruction, this costs one press to put right.
+  // Defined after send() so it can never close over a stale one.
+  const sendAnyway = () => {
+    const text = command?.text;
+    if (command?.before) setSettings(command.before);
+    setCommand(null);
+    if (text) send(text, { asCommand: false });
   };
 
   const retry = () => {
@@ -739,6 +807,31 @@ export default function App() {
                 >
                   <ArrowDown className="h-4 w-4" strokeWidth={2.2} />
                 </button>
+              )}
+
+              {/* What the composer did instead of sending, with both ways out
+                  of it: put it back, or send it as a message after all. The
+                  second is what makes reading a message as a command safe —
+                  a wrong guess costs one press rather than the question. */}
+              {command && (
+                <div className="rise thread-col flex items-center gap-2 px-4 pb-1.5 text-sm">
+                  <Wand2 className="h-3.5 w-3.5 shrink-0 text-accent" strokeWidth={2.2} />
+                  <span className="min-w-0 flex-1 truncate text-muted">{command.say}</span>
+                  {command.before && (
+                    <button
+                      onClick={undoCommand}
+                      className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-muted transition-colors hover:text-ink"
+                    >
+                      Undo
+                    </button>
+                  )}
+                  <button
+                    onClick={sendAnyway}
+                    className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-muted transition-colors hover:text-ink"
+                  >
+                    Send as a message
+                  </button>
+                </div>
               )}
 
               <Composer

@@ -10,7 +10,8 @@
     "test": "node --test api/*.test.mjs src/lib/*.test.mjs",
     "verify:appearance": "node verify/appearance.mjs",
     "test:schema": "./supabase/tests/run.sh",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "verify:commands": "node verify/commands.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
