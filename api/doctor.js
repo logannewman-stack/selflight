@@ -18,10 +18,11 @@ const TABLES = [
   "messages",
   "connectors",
   "connector_secrets",
-  "usage_events"
+  "usage_events",
+  "failures"
 ];
 
-const PRIVATE_TABLES = ["chats", "messages", "user_settings", "connector_secrets"];
+const PRIVATE_TABLES = ["chats", "messages", "user_settings", "connector_secrets", "failures"];
 
 // Columns the app gained after the first version of the schema, each with the
 // migration that adds it. A database created before one of these fails every
@@ -201,6 +202,23 @@ async function checkAccounts() {
     (sum, row) => sum + row.input_tokens + row.output_tokens,
     0
   );
+
+  // Counts only. What broke is in the failure log, which needs a secret to
+  // read — but knowing *whether* anything is broken shouldn't.
+  const [{ count: openFailures }, { count: notKnown }] = await Promise.all([
+    admin
+      .from("failures")
+      .select("*", { count: "exact", head: true })
+      .in("status", ["new", "sent"])
+      .neq("severity", "unknown"),
+    admin
+      .from("failures")
+      .select("*", { count: "exact", head: true })
+      .eq("severity", "unknown")
+      .gte("created_at", monthStart())
+  ]);
+
+  report.failures = { open: openFailures ?? 0, saidUnsure: notKnown ?? 0 };
 
   return report;
 }

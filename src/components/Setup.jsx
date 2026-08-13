@@ -345,6 +345,24 @@ function Accounts({ accounts, cap }) {
         {accounts.tokensThisMonth.toLocaleString()} tokens used this month · limit{" "}
         {cap ? `${cap.toLocaleString()} per person per month` : "none set"}
       </p>
+      {/* Counts only. What actually broke needs the feed secret to read, but
+          whether anything is broken shouldn't — that's the number you'd want to
+          see without going looking for it. */}
+      {accounts.failures && (
+        <p className="mt-1 text-muted">
+          {accounts.failures.open === 0
+            ? "No open failures."
+            : `${accounts.failures.open} open failure${accounts.failures.open === 1 ? "" : "s"}`}
+          {accounts.failures.saidUnsure > 0 && (
+            <>
+              {" · "}
+              {accounts.failures.saidUnsure} time
+              {accounts.failures.saidUnsure === 1 ? "" : "s"} it said it wasn't sure this month
+            </>
+          )}
+        </p>
+      )}
+
       {/* A behind-schema database is reported at the top of this component and
           returns early, so there is deliberately no second copy of that warning
           here — the one that used to be was unreachable. */}

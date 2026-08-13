@@ -13,6 +13,10 @@ export const keyName = "ANTHROPIC_API_KEY";
 
 export const configured = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
+// Claude can call an MCP server, which is what makes a connected account worth
+// having. provider.js routes a turn with active connectors here when it can.
+export const supportsConnectors = true;
+
 const MODEL = "claude-opus-5";
 const MAX_TOKENS = 64000;
 

@@ -139,6 +139,43 @@ create table if not exists public.usage_events (
 
 create index if not exists usage_user_month_idx on public.usage_events (user_id, created_at desc);
 
+/* -------------------------------- failures ------------------------------- */
+
+-- What went wrong, and — deliberately in the same table — the times the
+-- assistant said it didn't know. One is a bug and the other is working as
+-- intended, but both are evidence of where the product is weak, and separating
+-- them would mean only ever looking at one.
+create table if not exists public.failures (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  -- Nulled rather than cascaded on account deletion: the person goes, the
+  -- record of what broke stays, unattached. No message content is stored here,
+  -- so nothing of theirs is left in it.
+  user_id uuid references auth.users (id) on delete set null,
+  kind text not null,
+  -- 'error' (they saw it fail), 'degraded' (it failed, the app recovered),
+  -- 'unknown' (the assistant said it didn't know).
+  severity text not null default 'error',
+  summary text not null,
+  detail text,
+  context jsonb not null default '{}'::jsonb,
+  recovered boolean not null default false,
+  recovery text,
+  status text not null default 'new',
+  fingerprint text not null,
+  seen integer not null default 1,
+  last_seen_at timestamptz not null default now()
+);
+
+-- One open row per distinct failure. This is what stops a single broken
+-- connector filing four hundred identical tickets overnight.
+create unique index if not exists failures_open_fingerprint_idx
+  on public.failures (fingerprint)
+  where status in ('new', 'sent');
+
+create index if not exists failures_status_idx on public.failures (status, created_at desc);
+create index if not exists failures_user_idx on public.failures (user_id);
+
 /* ------------------------------ row security ---------------------------- */
 
 alter table public.profiles enable row level security;
@@ -149,6 +186,7 @@ alter table public.messages enable row level security;
 alter table public.connectors enable row level security;
 alter table public.connector_secrets enable row level security;
 alter table public.usage_events enable row level security;
+alter table public.failures enable row level security;
 
 do $$
 declare
@@ -177,6 +215,11 @@ create policy read_own_usage on public.usage_events
 
 -- public.connector_secrets intentionally has no policies. See the comment above.
 
+-- public.failures has none either, for the same reason and one more: nobody
+-- should be able to enumerate the ways the product breaks from a browser. It's
+-- written by the server and read by api/failures.js, which checks a shared
+-- secret rather than a session.
+
 /* -------------------------------- grants -------------------------------- */
 
 -- Supabase already grants new public tables to these roles, but saying it here
@@ -190,6 +233,7 @@ grant select, insert, update, delete on
 grant select on public.usage_events to authenticated;
 
 revoke all on public.connector_secrets from anon, authenticated;
+revoke all on public.failures from anon, authenticated;
 
 /* ------------------------------- new users ------------------------------ */
 

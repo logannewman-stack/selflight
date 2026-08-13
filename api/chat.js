@@ -5,7 +5,8 @@
 // browser — and hands the actual conversation to a provider. See provider.js.
 
 import { BUILD_PROMPT, TITLE_PROMPT, composeSystemPrompt, toApiMessages } from "./prompt.js";
-import { missingKey, provider, userFacingError } from "./provider.js";
+import { missingKey, provider, providerFor, userFacingError } from "./provider.js";
+import { admittedNotKnowing, record } from "./_failures.js";
 import {
   connectorsFor,
   hasSupabase,
@@ -71,7 +72,8 @@ export default async function handler(req, res) {
 /* ------------------------------ the exchange ----------------------------- */
 
 async function converse(req, res, { system, messages, settings, connectors, kind, user }) {
-  const model = provider();
+  // A turn with a connector goes to a model that can call one, if there is one.
+  const model = providerFor({ connectors });
 
   sseHead(res);
 
@@ -80,10 +82,14 @@ async function converse(req, res, { system, messages, settings, connectors, kind
   const stop = () => controller.abort();
   req.on("close", stop);
 
-  const state = { emitted: false };
+  const state = { emitted: false, answer: "" };
   const emit = {
     text: (text) => {
       state.emitted = true;
+      // Kept only until the turn ends, and only to ask two questions of it:
+      // did anything arrive, and did the assistant say it didn't know. Never
+      // stored, never sent anywhere.
+      if (state.answer.length < 8000) state.answer += text;
       send(res, { text });
     },
     thinking: (thinking) => send(res, { thinking }),
@@ -99,22 +105,67 @@ async function converse(req, res, { system, messages, settings, connectors, kind
   if (warning) emit.notice(warning);
 
   let usage = { input: 0, output: 0 };
+  const started = Date.now();
+  const base = {
+    route: "/api/chat",
+    provider: model.name,
+    kind,
+    depth: settings.depth || "balanced",
+    connectors: connectors.filter((c) => c?.enabled !== false).length
+  };
+
+  const attempt = (extra = {}) =>
+    model.converse({
+      system,
+      messages,
+      settings,
+      connectors,
+      kind,
+      signal: controller.signal,
+      emit,
+      ...extra
+    });
+
+  // Filled in if something goes wrong, and filed after the response — a report
+  // about a failure must not slow down the recovery from it.
+  let failure = null;
 
   try {
-    usage =
-      (await model.converse({
-        system,
-        messages,
-        settings,
-        connectors,
-        kind,
-        signal: controller.signal,
-        emit
-      })) || usage;
+    usage = (await attempt()) || usage;
   } catch (err) {
+    // A closed tab isn't a failure and there's nobody left to tell.
     if (err?.name !== "AbortError") {
       console.error(`[api/chat] ${err?.stack || err}`);
-      send(res, { error: userFacingError(err), partial: state.emitted });
+
+      // One recovery, attempted only where it can actually help: nothing has
+      // streamed yet, and a connector was in play. A connected tool that won't
+      // answer is by far the most common way an otherwise fine turn dies, and
+      // answering without it beats failing — provided the person is told that's
+      // what happened, which is what the notice is for.
+      let recovered = false;
+
+      if (!state.emitted && base.connectors > 0) {
+        try {
+          emit.notice("A connected tool didn't answer, so this reply was written without it.");
+          usage = (await attempt({ connectors: [] })) || usage;
+          recovered = state.emitted;
+        } catch (second) {
+          console.error(`[api/chat] retry without connectors also failed: ${second?.message}`);
+        }
+      }
+
+      if (!recovered) send(res, { error: userFacingError(err), partial: state.emitted });
+
+      failure = {
+        kind: base.connectors ? "connector" : "model",
+        severity: recovered ? "degraded" : "error",
+        summary: `${model.name} failed to answer a ${kind} turn`,
+        detail: err?.stack || String(err?.message || err),
+        context: { ...base, ms: Date.now() - started, streamed: state.emitted },
+        recovered,
+        recovery: recovered ? "Answered again with the connectors removed." : null,
+        userId: user?.id
+      };
     }
   } finally {
     req.off("close", stop);
@@ -123,8 +174,26 @@ async function converse(req, res, { system, messages, settings, connectors, kind
   send(res, { done: true });
   res.end();
 
-  // After the response, so bookkeeping never delays the reply.
+  if (failure) await record(failure);
+
+  // Everything below happens after the reply is on screen, so no bookkeeping
+  // can delay or break an answer that already worked.
   if (user) await recordUsage(user.id, { kind, model: model.name, ...usage });
+
+  // Saying "I don't know" is the behaviour we want, not a bug — and it is also
+  // the clearest evidence there is of what the product can't do yet, which is
+  // worth writing down rather than scrolling past.
+  const admission = admittedNotKnowing(state.answer);
+  if (admission) {
+    await record({
+      kind: "unknown",
+      severity: "unknown",
+      summary: "The assistant said it didn't know",
+      detail: admission,
+      context: { ...base, ms: Date.now() - started },
+      userId: user?.id
+    });
+  }
 }
 
 /* -------------------------------- titles --------------------------------- */

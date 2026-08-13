@@ -186,7 +186,8 @@ const TABLES = [
   "messages",
   "connectors",
   "connector_secrets",
-  "usage_events"
+  "usage_events",
+  "failures"
 ];
 
 async function checkSupabase() {

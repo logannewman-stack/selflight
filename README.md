@@ -180,6 +180,91 @@ same split as an app and its model, so the version can move without renaming the
 every time it improves — and so nobody has to learn what `sonar-reasoning-pro` is to
 understand what they're talking to. Both live in `src/lib/brand.js`.
 
+## When it breaks, and when it doesn't know
+
+Two behaviours, one table, because both answer the same question: what can't
+this product do yet?
+
+**Honesty first.** The system prompt tells the model to say "I don't know" in
+those words, early, and never to invent a fact, number, citation, filename or
+API it isn't sure exists. A wrong answer delivered confidently costs the person
+far more than an admission costs us.
+
+**Saying so gets written down.** Not as a bug — it's the behaviour we want — but
+because where it happens is the clearest evidence there is of where the product
+is weak. `api/_failures.js` recognises an admission in the reply and files it
+with severity `unknown`. The Status tab shows the count: *"12 times it said it
+wasn't sure this month."*
+
+**Real failures self-heal where they can.** A turn that dies with a connector in
+play is retried once without it, the person is told that's what happened, and
+the row is filed as `degraded` rather than `error`. What the app can't do is
+patch its own source in production — that's what the loop below is for.
+
+### The failure log
+
+| Column | What's in it |
+| --- | --- |
+| `kind` | `model`, `connector`, `store`, `transcribe`, `oauth`, `unknown` |
+| `severity` | `error` (they saw it fail), `degraded` (recovered), `unknown` (said it didn't know) |
+| `summary` / `detail` | One line, plus the stack |
+| `context` | Route, provider, model, connector count, duration. **Never conversation content** |
+| `recovered` / `recovery` | What the app did about it by itself |
+| `fingerprint` / `seen` | Same failure, same row, incremented |
+| `status` | `new` → `sent` → `resolved` / `wontfix` |
+
+Two things about that table are deliberate. It stores **no message content** — a
+failure report that quotes what somebody asked stops being a debugging aid and
+becomes a transcript. And it has row-level security on with **no policies**, like
+the token table: nobody should be able to enumerate the ways a deployment breaks
+from a browser, or plant an entry that points the repair workflow somewhere of
+their choosing. The RLS suite asserts both.
+
+Fingerprinting is what stops one flapping connector filing four hundred
+identical tickets overnight. Numbers, ids, urls and quoted strings are stripped
+before hashing, so `timed out after 30001ms` and `timed out after 30004ms` are
+one row that has now been seen twice.
+
+### Wiring it to n8n
+
+```
+N8N_FAILURE_WEBHOOK_URL=https://your-n8n/webhook/selflight-failure
+FAILURE_FEED_SECRET=<a long random string>
+```
+
+With the webhook set, every **new** failure is POSTed the moment it's filed
+(repeats aren't — the workflow already has that one). Fire-and-forget with a
+4-second timeout: a webhook that's down must never slow a reply down.
+
+The feed is there for backfill, and for whatever the webhook missed:
+
+```bash
+# oldest first — the first break is often the cause of the rest
+curl -H "X-Selflight-Secret: $FAILURE_FEED_SECRET" \
+     "https://selflight.vercel.app/api/failures?status=new&limit=50"
+
+# when the workflow is done with one
+curl -X PATCH -H "X-Selflight-Secret: $FAILURE_FEED_SECRET" \
+     -H "Content-Type: application/json" \
+     -d '{"id":"…","status":"resolved","note":"opened PR #14"}' \
+     https://selflight.vercel.app/api/failures
+```
+
+`note` is where the workflow says what it did — the PR it opened, why it gave
+up, who it emailed. It belongs with the failure rather than in a log somewhere
+else that has to be correlated by hand later.
+
+A workflow that reads a failure, asks Claude for a fix, and emails a human when
+Claude says it doesn't know what to do wants roughly: **Webhook → Claude (with
+`summary`, `detail`, `context`) → branch on whether it produced a patch →
+open a PR, or send the email → PATCH the status back.** Set the status to
+`wontfix` on the email branch so the same one doesn't come round again; a
+`resolved` failure that recurs opens a fresh ticket, which is what the partial
+unique index is for.
+
+With no secret set the route is **off**, not open. An unguarded list of every way
+a deployment breaks is a gift to somebody looking for one.
+
 ## Saying it instead of clicking
 
 Type — or dictate — `make the background sage`, `open settings`, `bigger text`,

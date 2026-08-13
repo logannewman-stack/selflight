@@ -17,6 +17,11 @@ export const keyName = "PERPLEXITY_API_KEY";
 
 export const configured = () => Boolean(process.env.PERPLEXITY_API_KEY);
 
+// Sonar searches the web itself but has no tool-use or MCP equivalent, so a
+// connected account cannot be reached from here. Stated rather than assumed —
+// provider.js reads it to route connector turns elsewhere when it can.
+export const supportsConnectors = false;
+
 // Sonar's per-request search fee scales with how much of the web it pulls in,
 // so answer depth and cost are the same dial. Left in prompt.js next to the
 // other settings translations, and tested there.

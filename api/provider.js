@@ -18,6 +18,26 @@ export function provider() {
   return PROVIDERS.find((p) => p.configured()) || perplexity;
 }
 
+/**
+ * The provider for a particular turn.
+ *
+ * Connectors are the exception to "cheapest wins". A connected GitHub account
+ * is worth nothing if the model that answers can't call it, so a turn with an
+ * active connector goes to a provider that supports tools when one is
+ * configured, and the default keeps the rest of the traffic cheap.
+ *
+ * With only Perplexity set this changes nothing and returns it — the panel and
+ * the notice on the reply both say the connector can't be reached, which is
+ * better than routing to a model that isn't there.
+ */
+export function providerFor({ connectors = [] } = {}) {
+  const active = connectors.filter((c) => c?.enabled !== false && c?.url);
+  if (!active.length) return provider();
+
+  const capable = PROVIDERS.find((p) => p.configured() && p.supportsConnectors);
+  return capable || provider();
+}
+
 export function missingKey() {
   if (PROVIDERS.some((p) => p.configured())) return null;
   return (

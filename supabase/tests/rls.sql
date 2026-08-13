@@ -130,6 +130,23 @@ set role authenticated;
 select t.blocked('the owner cannot read their own connector token back',
   'select count(*) from public.connector_secrets');
 
+/* ------------------------------- failures ------------------------------- */
+
+-- Same treatment as the token table, for a different reason: nobody should be
+-- able to enumerate the ways the product breaks from a browser, or to plant an
+-- entry that sends the repair workflow somewhere of their choosing.
+set role service_role;
+insert into public.failures (kind, severity, summary, fingerprint)
+values ('model', 'error', 'a model call failed', 'fp-test-0001');
+select t.check('the server can record a failure',
+  (select count(*) from public.failures) = 1);
+
+set role authenticated;
+select t.blocked('a signed-in user cannot read the failure log',
+  'select count(*) from public.failures');
+select t.blocked('nor plant an entry in it',
+  'insert into public.failures (kind, summary, fingerprint) values (''model'', ''forged'', ''fp-forged'')');
+
 /* -------------------------------- usage --------------------------------- */
 
 set role service_role;
