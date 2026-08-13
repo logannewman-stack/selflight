@@ -244,3 +244,105 @@ test("the limit is honoured", () => {
   for (let i = 0; i < 40; i++) withMessages(`Chat ${i}`, "shared phrase");
   assert.equal(searchMessages("shared phrase", 5).length, 5);
 });
+
+/* --------------------------- bringing settings forward -------------------- */
+//
+// Changing a default only reaches browsers that have never stored anything.
+// Everyone already using Selflight carries a blob naming the old palette, so a
+// new default changes nothing for exactly the people who are already here —
+// which is how "the appearance change didn't do anything" happens.
+
+const { DEFAULT_SETTINGS, SETTINGS_VERSION, migrate, loadSettings, saveSettings } = await import(
+  "./storage.js"
+);
+
+test("a browser that has never stored anything gets the current defaults", () => {
+  const s = migrate({});
+  assert.equal(s.theme, DEFAULT_SETTINGS.theme);
+  assert.equal(s.v, SETTINGS_VERSION);
+});
+
+test("settings written before the change move to the new palette", () => {
+  // The exact blob an existing browser holds: every colour control still at the
+  // values that shipped before High contrast became the default.
+  const old = {
+    theme: "paper",
+    lightTheme: "paper",
+    darkTheme: "midnight",
+    matchSystem: false,
+    accent: "palette",
+    accentCustom: "",
+    baseColor: "",
+    textSize: "lg"
+  };
+
+  const s = migrate(old);
+  assert.equal(s.theme, "contrast");
+  assert.equal(s.lightTheme, "contrast");
+  assert.equal(s.darkTheme, "contrast-dark");
+  // Everything that isn't a colour is untouched.
+  assert.equal(s.textSize, "lg");
+});
+
+test("a palette somebody actually chose is left alone", () => {
+  const s = migrate({ theme: "nocturne", lightTheme: "paper", darkTheme: "midnight" });
+  assert.equal(s.theme, "nocturne", "overwriting a deliberate choice would be its own bug");
+});
+
+test("a main colour somebody set is left alone", () => {
+  const s = migrate({ theme: "paper", baseColor: "#3B6EA5" });
+  assert.equal(s.theme, "paper");
+  assert.equal(s.baseColor, "#3B6EA5");
+});
+
+test("an accent somebody picked is left alone", () => {
+  assert.equal(migrate({ theme: "paper", accent: "teal" }).theme, "paper");
+});
+
+test("a changed dark pairing counts as a choice", () => {
+  assert.equal(migrate({ theme: "paper", darkTheme: "nocturne" }).theme, "paper");
+});
+
+test("match system on counts as a choice", () => {
+  assert.equal(migrate({ theme: "paper", matchSystem: true }).theme, "paper");
+});
+
+test("it only runs once", () => {
+  // Somebody who is moved and then deliberately goes back to Paper must stay on
+  // Paper — a migration that reapplies every load is a setting you can't change.
+  const moved = migrate({ theme: "paper" });
+  assert.equal(moved.theme, "contrast");
+
+  const wentBack = migrate({ ...moved, theme: "paper" });
+  assert.equal(wentBack.theme, "paper");
+});
+
+test("the version is stamped so it can't run twice", () => {
+  assert.equal(migrate({ theme: "paper" }).v, SETTINGS_VERSION);
+});
+
+test("it survives a round trip through storage", () => {
+  store.data.clear();
+  saveSettings({ theme: "paper", lightTheme: "paper", darkTheme: "midnight", textSize: "sm" });
+
+  const loaded = loadSettings();
+  assert.equal(loaded.theme, "contrast");
+  assert.equal(loaded.textSize, "sm");
+
+  // And once saved back, it stays put.
+  saveSettings(loaded);
+  assert.equal(loadSettings().theme, "contrast");
+});
+
+test("the older typeface migration still works alongside it", () => {
+  const s = migrate({ uiFace: "serif", readingFace: "system", theme: "paper" });
+  assert.equal(s.uiFont, "source-serif");
+  assert.equal(s.replyFont, "system");
+  assert.equal(s.theme, "contrast");
+});
+
+test("nothing is thrown at rubbish", () => {
+  assert.doesNotThrow(() => migrate(undefined));
+  assert.doesNotThrow(() => migrate({}));
+  assert.equal(migrate(undefined).theme, DEFAULT_SETTINGS.theme);
+});

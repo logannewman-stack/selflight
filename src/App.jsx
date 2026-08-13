@@ -121,6 +121,23 @@ export default function App() {
     if (loadedFor === store) store.settings.save(settings);
   }, [settings, loadedFor, store]);
 
+  // The remote write is debounced by 700ms, which is most of a second in which
+  // closing the tab would lose the change. `pagehide` still fires when a phone
+  // browser is dismissed; `visibilitychange` covers switching apps without
+  // closing anything.
+  useEffect(() => {
+    const flush = () => store.settings.flush?.();
+    const onHidden = () => document.visibilityState === "hidden" && flush();
+
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      flush();
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onHidden);
+    };
+  }, [store]);
+
   useEffect(() => {
     applyFonts(settings, fontCatalogue);
   }, [settings.uiFont, settings.replyFont, settings.codeFont]);

@@ -16,7 +16,8 @@
     "verify:speed": "node verify/speed.mjs",
     "verify:threads": "node verify/threads.mjs",
     "verify:attach": "node verify/attach.mjs",
-    "verify:contrast": "node verify/contrast.mjs"
+    "verify:contrast": "node verify/contrast.mjs",
+    "verify:settings": "node verify/settings.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",

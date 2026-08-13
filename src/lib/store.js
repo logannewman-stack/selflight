@@ -9,7 +9,7 @@
 // localStorage or a table.
 
 import { supabase } from "./supabase.js";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./storage.js";
+import { loadSettings, migrate, saveSettings } from "./storage.js";
 import * as local from "./storage.js";
 import { isDarkPalette } from "./palettes.js";
 import { explain } from "./faults.js";
@@ -21,11 +21,29 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // against a database it would be a write per keystroke on the hex fields.
 function debounce(fn, ms) {
   let timer;
+  let pending = null;
+
   const wrapped = (...args) => {
+    pending = args;
     clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), ms);
+    timer = setTimeout(() => {
+      pending = null;
+      fn(...args);
+    }, ms);
   };
-  wrapped.flush = () => clearTimeout(timer);
+
+  // Runs the pending call rather than cancelling it. It used to only clear the
+  // timer, which is the opposite of what the name promises: a colour changed
+  // and a tab closed inside the same 700ms lost the change silently, and looked
+  // exactly like a setting that doesn't save.
+  wrapped.flush = () => {
+    if (!pending) return;
+    const args = pending;
+    pending = null;
+    clearTimeout(timer);
+    fn(...args);
+  };
+
   return wrapped;
 }
 
@@ -89,7 +107,9 @@ const localStore = {
     },
     async save(settings) {
       saveSettings(settings);
-    }
+    },
+    // localStorage is synchronous, so there is never anything in flight.
+    flush() {}
   },
 
   palettes: {
@@ -301,11 +321,19 @@ function remoteStore(user) {
           .eq("user_id", uid)
           .maybeSingle();
         fail("loading settings", error);
-        return { ...DEFAULT_SETTINGS, ...(data?.settings || {}) };
+        // Through the same migration as the local store. A signed-in account
+        // keeps its settings in Postgres, so clearing the browser wouldn't move
+        // them — and that's the copy that matters for anyone actually using it.
+        return migrate(data?.settings || {});
       },
 
       async save(settings) {
         pushSettings(settings);
+      },
+      // Called when the page is being hidden or closed, so the last change
+      // doesn't die inside the debounce window.
+      flush() {
+        pushSettings.flush();
       }
     },
 

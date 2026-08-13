@@ -196,12 +196,25 @@ available and do nothing. Typing "make the background tan" still works — an in
 explicit, so it's honoured and the reply says what it cost: *"Background is tan. That turned
 off High contrast."*
 
+**Existing installs move too.** A default only reaches browsers that have never stored
+anything, and everyone already using Selflight carries a settings blob naming the old
+palette — so shipping a new default changes nothing for exactly the people already here.
+`migrate()` in `src/lib/storage.js` moves them, but only if no colour control was ever
+touched: any palette, accent or main colour you chose is left alone. Signed in, that applies
+to your row in `user_settings`, which is the copy that decides what you see — clearing the
+browser wouldn't have touched it.
+
+The one case it gets wrong: somebody who deliberately chose Paper looks identical to
+somebody who never chose at all, so they get moved. One click in Appearance puts it back,
+and it won't move again.
+
 Every palette is measured rather than eyeballed, against both backgrounds text actually sits
 on — the page and the sidebar panel:
 
 ```bash
 npm test                  # WCAG ratios for all seven palettes
 npm run verify:contrast   # the same ratios, read off rendered elements in a browser
+npm run verify:settings   # changes take effect and stick, signed out and signed in
 ```
 
 Those two disagreeing is how the last one was found: the palettes all passed on paper while
@@ -588,7 +601,7 @@ request pieces — system prompt, effort, tools, MCP servers — and `npm test` 
 directly. No network, no API key, no dependencies:
 
 ```bash
-npm test        # 266 tests
+npm test        # 278 tests
 ```
 
 It checks that tone changes the prompt, that standing instructions are passed through
@@ -677,6 +690,7 @@ app's queries name actually exists. 38 assertions and a schema cross-check; deta
 | `verify/attach.mjs` | Attaching a file, including reading what was actually posted to `/api/chat`. |
 | `verify/speed.mjs` | Times opening a chat against a deliberately slow store. |
 | `verify/contrast.mjs` | Reads the colour of real elements and fails anything under the WCAG floor. |
+| `verify/settings.mjs` | Whether a setting takes effect and stays — including the signed-in path, against a fake Supabase project. |
 | `scripts/doctor.mjs` | `npm run doctor` — checks the key, the schema, what the public key can read, and a deployment. |
 
 ## Things you'll probably want to change

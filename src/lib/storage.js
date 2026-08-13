@@ -167,8 +167,8 @@ export const DEFAULT_SETTINGS = {
   // leaving legibility as a setting gets it backwards: the people who need
   // this most are the least likely to go looking for it.
   //
-  // Only new browsers are affected. loadSettings() merges what's stored over
-  // these, so anyone who already picked a palette keeps it.
+  // A default only reaches new browsers, though, and everyone already using
+  // this has a stored blob that says `paper`. See migrate() below.
   theme: "contrast",
   matchSystem: false,
   lightTheme: "contrast",
@@ -226,15 +226,61 @@ export const DEFAULT_SETTINGS = {
 // catalogue so an existing browser doesn't silently lose its selection.
 const FACE_TO_FONT = { geist: "geist", serif: "source-serif", system: "system" };
 
-export function loadSettings() {
-  const stored = load(SETTINGS, {}) || {};
+// Bumped when a default changes in a way that should reach people who are
+// already using this. Stored alongside the settings, so a blob can say which
+// era it was written in.
+export const SETTINGS_VERSION = 2;
+
+// The colour defaults as they shipped before High contrast became the default.
+// A stored blob matching all of these had its colour controls left alone.
+const V1_COLOURS = {
+  theme: "paper",
+  lightTheme: "paper",
+  darkTheme: "midnight",
+  matchSystem: false,
+  accent: "palette",
+  accentCustom: "",
+  baseColor: ""
+};
+
+/**
+ * Brings a stored settings blob up to date.
+ *
+ * Changing DEFAULT_SETTINGS only reaches browsers that have never stored
+ * anything — everyone already using Selflight carries a blob that names the old
+ * palette, so shipping a new default changes nothing for exactly the people
+ * already here. This moves them, but only if they never touched a colour
+ * control: any palette, accent or main colour they chose is left alone.
+ *
+ * A person who deliberately chose Paper is indistinguishable from one who never
+ * chose at all, so they do get moved. That's the one case this gets wrong, and
+ * it costs one click in Appearance to undo.
+ */
+export function migrate(stored = {}) {
   const merged = { ...DEFAULT_SETTINGS, ...stored };
 
   if (stored.uiFace && !stored.uiFont) merged.uiFont = FACE_TO_FONT[stored.uiFace] || "geist";
   if (stored.readingFace && !stored.replyFont) {
     merged.replyFont = FACE_TO_FONT[stored.readingFace] || "geist";
   }
+
+  if ((stored.v || 0) < 2) {
+    const untouched = Object.entries(V1_COLOURS).every(
+      ([key, was]) => (stored[key] ?? was) === was
+    );
+    if (untouched) {
+      merged.theme = DEFAULT_SETTINGS.theme;
+      merged.lightTheme = DEFAULT_SETTINGS.lightTheme;
+      merged.darkTheme = DEFAULT_SETTINGS.darkTheme;
+    }
+  }
+
+  merged.v = SETTINGS_VERSION;
   return merged;
+}
+
+export function loadSettings() {
+  return migrate(load(SETTINGS, {}) || {});
 }
 
 export function saveSettings(settings) {
