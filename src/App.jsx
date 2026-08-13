@@ -15,6 +15,7 @@ import * as fontCatalogue from "./lib/fonts.js";
 import { draftFrom, importPalette, refreshSwatch } from "./lib/palettes.js";
 import { modeLabel } from "./lib/brand.js";
 import { parseCommand } from "./lib/commands.js";
+import { createThreadCache } from "./lib/threads.js";
 import { fallbackTitle, lastChat, loadSettings, rememberChat } from "./lib/storage.js";
 import { onStoreError, storeFor } from "./lib/store.js";
 import { hasSupabase, supabase } from "./lib/supabase.js";
@@ -51,6 +52,9 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(!hasSupabase);
   const store = useMemo(() => storeFor(user), [user?.id]);
+  // Rebuilt with the store on purpose: a cache that outlived a sign-out would
+  // hold the previous account's conversations in memory.
+  const threads = useMemo(() => createThreadCache(store), [store]);
   // Which store the loaded data belongs to. Compared by identity so a settings
   // write can never land in the account it wasn't read from.
   const [loadedFor, setLoadedFor] = useState(null);
@@ -68,6 +72,9 @@ export default function App() {
   // message. Holds what it did, what was typed, and the settings from before —
   // so it can be taken back, or sent as a message after all.
   const [command, setCommand] = useState(null);
+  // True only while a chat with nothing cached is being fetched. Distinct from
+  // "no messages", which is a real and different screen.
+  const [loadingThread, setLoadingThread] = useState(false);
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
@@ -187,13 +194,14 @@ export default function App() {
       chatIdRef.current = previous?.id ?? null;
       setActiveId(previous?.id ?? null);
       setMessages(history);
+      if (previous) threads.update(previous.id, history);
       setLoadedFor(store);
     })();
 
     return () => {
       live = false;
     };
-  }, [store]);
+  }, [store, threads]);
 
   // Gated on the load having finished, or the null this starts at would erase
   // the pointer before the effect above ever got to read it.
@@ -265,7 +273,6 @@ export default function App() {
       stop();
       chatIdRef.current = chat.id;
       setActiveId(chat.id);
-      setMessages([]);
       setError(null);
       setNotice(null);
       setStreaming(false);
@@ -274,20 +281,34 @@ export default function App() {
       setPinned(true);
       setFocusSignal((n) => n + 1);
 
-      const history = await store.chats.messages(chat.id);
-      // A second click while this was loading wins; don't overwrite it.
-      if (chatIdRef.current === chat.id) setMessages(history);
+      // A conversation we've already read reopens with no wait at all. This is
+      // the difference between a tap that feels like a tab switch and one that
+      // shows a blank screen while a database answers.
+      const cached = threads.peek(chat.id);
+      setMessages(cached ?? []);
+      // Only claim to be loading when there's genuinely nothing to show —
+      // otherwise the skeleton flashes over a conversation that's already there.
+      setLoadingThread(!cached);
+
+      try {
+        const history = await threads.load(chat.id);
+        // A second tap while this was in flight wins; don't overwrite it.
+        if (chatIdRef.current === chat.id) setMessages(history);
+      } finally {
+        if (chatIdRef.current === chat.id) setLoadingThread(false);
+      }
     },
-    [stop, store]
+    [stop, threads]
   );
 
   const removeChat = useCallback(
     async (id) => {
       await store.chats.remove(id);
+      threads.forget(id);
       setChats(await store.chats.list());
       if (chatIdRef.current === id) newChat();
     },
-    [newChat, store]
+    [newChat, store, threads]
   );
 
   const toggleSection = useCallback((next, tab) => {
@@ -443,6 +464,9 @@ export default function App() {
     }
 
     await store.chats.saveMessages(chatId, final);
+    // The browser holds the authoritative thread while a turn is in flight, so
+    // this version is more current than the database's, not less.
+    threads.update(chatId, final);
     setChats(await store.chats.list());
     return { final, failed };
   };
@@ -627,6 +651,7 @@ export default function App() {
       onSignOut={user ? signOut : null}
       onNew={newChat}
       onOpen={openChat}
+      onPrefetch={(id) => threads.warm(id)}
       onDelete={removeChat}
       onCollapse={onCollapse}
     />
@@ -742,7 +767,12 @@ export default function App() {
               className="thin-scrollbar relative flex-1 overflow-y-auto"
             >
               <div className="thread-col px-4" style={{ paddingBlock: "var(--pad-y)" }}>
-                {messages.length === 0 ? (
+                {loadingThread && messages.length === 0 ? (
+                  /* The shape of a conversation, not the shape of an empty app.
+                     Showing the "What are you working on?" screen here reads as
+                     "your chat is gone", which is the opposite of true. */
+                  <ThreadSkeleton />
+                ) : messages.length === 0 ? (
                   <div className="pt-[11vh]">
                     <Logo size={32} />
                     <p className="mt-1 text-sm font-medium text-soft">{modeLabel(settings)}</p>
@@ -889,6 +919,35 @@ export default function App() {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// What a conversation looks like before it's arrived.
+//
+// Deliberately not a spinner: a spinner says "something is happening", while
+// this says "your messages are on their way, and here is roughly where they'll
+// be" — so the layout doesn't jump when they land. Two bars for the question,
+// four for the reply, at the widths real text tends to run.
+function ThreadSkeleton() {
+  const line = (width, extra = "") => (
+    <div className={`h-3.5 rounded-md bg-line/70 ${extra}`} style={{ width }} />
+  );
+
+  return (
+    <div className="stack-msg" aria-busy="true" aria-label="Loading this conversation">
+      <div className="flex justify-end">
+        <div className="w-[55%] space-y-2 rounded-2xl rounded-br-md bg-panel px-4 py-3">
+          {line("100%")}
+          {line("62%")}
+        </div>
+      </div>
+      <div className="space-y-2.5">
+        {line("94%")}
+        {line("100%")}
+        {line("88%")}
+        {line("46%")}
+      </div>
     </div>
   );
 }

@@ -49,6 +49,7 @@ export default function Sidebar({
   onSignOut,
   onNew,
   onOpen,
+  onPrefetch,
   onDelete,
   onCollapse
 }) {
@@ -152,6 +153,13 @@ export default function Sidebar({
                 >
                   <button
                     onClick={() => onOpen(chat)}
+                    // Start loading before the tap lands. On a mouse that's the
+                    // ~200ms between hovering and clicking; on a touchscreen
+                    // it's the whole duration of the press. Either is usually
+                    // longer than the fetch, so the chat is already there.
+                    onPointerEnter={() => onPrefetch?.(chat.id)}
+                    onTouchStart={() => onPrefetch?.(chat.id)}
+                    onFocus={() => onPrefetch?.(chat.id)}
                     className="row-y flex min-w-0 flex-1 items-center gap-2 pl-2.5 text-left"
                   >
                     <span

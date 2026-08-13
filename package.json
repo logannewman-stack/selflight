@@ -12,7 +12,8 @@
     "test:schema": "./supabase/tests/run.sh",
     "doctor": "node scripts/doctor.mjs",
     "verify:commands": "node verify/commands.mjs",
-    "eval": "node evals/run.mjs"
+    "eval": "node evals/run.mjs",
+    "verify:speed": "node verify/speed.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
