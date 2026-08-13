@@ -180,6 +180,59 @@ same split as an app and its model, so the version can move without renaming the
 every time it improves — and so nobody has to learn what `sonar-reasoning-pro` is to
 understand what they're talking to. Both live in `src/lib/brand.js`.
 
+## What it costs, and what to charge
+
+Tokens are the wrong unit for every decision that matters. "4,600 tokens" doesn't
+tell you whether a plan is profitable or what a heavy user is worth; cents do.
+`api/_pricing.js` is the cost model, and every model call now writes its own
+price into `usage_events.cost_micros` at the moment it happens — not derived
+later, because rates move and a cost recomputed at today's prices against last
+quarter's traffic looks precise and isn't.
+
+| Model | Per message | |
+| --- | --- | --- |
+| `sonar` | **0.96¢** | The cheap tier is genuinely a third of the price |
+| `claude-haiku-4-5` | 1.6¢ | |
+| `sonar-reasoning-pro` | **2.6¢** | Your default |
+| `sonar-pro` | 2.9¢ | |
+| `claude-sonnet-5` | 2.9¢ | $2/$10 intro until 2026-08-31, not encoded |
+| `claude-opus-5` | 4.2¢ | |
+
+On a ~4,600-token turn, ~90% input. **The per-request search fee is 54% of a
+Sonar message** — more than the tokens. That's why `enable_search_classifier` is
+set, and it's the cheapest lever in the codebase.
+
+### The plans, and the arithmetic behind them
+
+| | Price | Messages | Worst case | At the cap | Typical use |
+| --- | --- | --- | --- | --- | --- |
+| Free | — | 40 | $1.04 | — | — |
+| **Pro** | **$20** | 500 | $12.98 | 35% | **93%** |
+| Bring your own key | $8 | ∞ | $0 | 100% | 100% |
+| Team | $30/seat | 600 | $15.58 | 48% | 95% |
+
+**The gap between the last two columns is the whole business.** A real tester
+sends ~120 messages and costs about $1.45; the cap would allow $12.98. So
+blended margin sits near 93% while the cap stops a runaway script from ever
+making a month negative. The cap is a circuit breaker, not a budget.
+
+`pricing.test.mjs` holds this to account — including a **30% floor on worst-case
+margin for every paid plan**, which is what caught Team at 1,000 messages (13%,
+too thin to ship) and moved it to 600. The first version of the cost model also
+had the search fees off by 10×; a test caught that too, which is the entire
+argument for testing money arithmetic.
+
+**Bring-your-own-key is the highest-margin thing here** and the most
+differentiated: they paste their own Perplexity or Anthropic key, their traffic
+costs us nothing, and we charge for the software. Their key goes in
+`public.user_keys` — RLS on, no policies, same treatment as a connector token,
+asserted in the RLS suite.
+
+Run `supabase/migrations/0005_money.sql` to add it to an existing database.
+Settings → Status then shows spend, cost per active person, and cost per
+message. `SELFLIGHT_MONTHLY_TOKEN_CAP` is now an **override** rather than a
+default — leave it unset and everyone gets their plan's allowance.
+
 ## Training it, in the only sense an API model takes one
 
 You can't fine-tune Sonar or Claude from here. What you can do is specify the

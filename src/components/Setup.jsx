@@ -343,8 +343,24 @@ function Accounts({ accounts, cap }) {
       <p className="mt-2 text-muted">
         {accounts.accounts} account{accounts.accounts === 1 ? "" : "s"} so far ·{" "}
         {accounts.tokensThisMonth.toLocaleString()} tokens used this month · limit{" "}
-        {cap ? `${cap.toLocaleString()} per person per month` : "none set"}
+        {cap ? `${cap.toLocaleString()} per person per month` : "each plan's own"}
       </p>
+
+      {/* Tokens don't tell you whether the business works. This does. */}
+      {accounts.spend && (
+        <p className="mt-1 text-muted">
+          <b className="font-medium text-ink">{accounts.spend.display}</b> spent this month across{" "}
+          {accounts.spend.calls.toLocaleString()} call
+          {accounts.spend.calls === 1 ? "" : "s"}
+          {accounts.spend.activeUsers > 0 && (
+            <>
+              {" · "}
+              {accounts.spend.perActiveUser} per active person · {accounts.spend.perMessage} per
+              message
+            </>
+          )}
+        </p>
+      )}
       {/* Counts only. What actually broke needs the feed secret to read, but
           whether anything is broken shouldn't — that's the number you'd want to
           see without going looking for it. */}

@@ -183,12 +183,36 @@ test("token counts come back for the spend cap", async () => {
     { usage: { prompt_tokens: 1234, completion_tokens: 567 }, choices: [{ delta: { content: "" } }] }
   ]);
 
-  assert.deepEqual(usage, { input: 1234, output: 567 });
+  assert.equal(usage.input, 1234);
+  assert.equal(usage.output, 567);
+});
+
+test("usage names the model that served it, not the provider", async () => {
+  // api/_pricing.js keys its rates by model id. Reporting "Perplexity" here
+  // would price every reply as an unknown model and make the margin fiction.
+  const { usage } = await converse([delta("hi")], { depth: "quick" });
+  assert.equal(usage.model, "sonar");
+
+  const deep = await converse([delta("hi")], { depth: "deep" });
+  assert.equal(deep.usage.model, "sonar-reasoning-pro");
+});
+
+test("usage says whether a search fee was paid", async () => {
+  // On Sonar the per-request search fee is over half the cost of a message, so
+  // a reply that didn't search must not be billed as though it had.
+  const quiet = await converse([delta("no sources here")]);
+  assert.equal(quiet.usage.searched, false);
+
+  const searched = await converse([
+    { citations: ["https://example.com/a"], choices: [{ delta: { content: "hi" } }] }
+  ]);
+  assert.equal(searched.usage.searched, true);
 });
 
 test("a reply with no usage block still returns countable zeros", async () => {
   const { usage } = await converse([delta("hi")]);
-  assert.deepEqual(usage, { input: 0, output: 0 });
+  assert.equal(usage.input, 0);
+  assert.equal(usage.output, 0);
 });
 
 /* -------------------------------- failures ------------------------------- */

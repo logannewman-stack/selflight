@@ -12,7 +12,11 @@
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- 'free', 'pro', 'byok', 'team'. Null reads as free, so an account created
+  -- before plans existed never gets an unlimited allowance by accident.
+  plan text,
+  plan_since timestamptz
 );
 
 /* ------------------------------- settings ------------------------------- */
@@ -123,6 +127,16 @@ create table if not exists public.connector_secrets (
   updated_at timestamptz not null default now()
 );
 
+-- Someone on the bring-your-own-key plan spends their own money, so their key
+-- gets exactly the same treatment as a connector token: RLS on, no policies,
+-- reachable only by the service role.
+create table if not exists public.user_keys (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  provider text not null,
+  key text not null,
+  updated_at timestamptz not null default now()
+);
+
 /* --------------------------------- usage -------------------------------- */
 
 -- One row per model call, so a monthly cap can be enforced and a surprise bill
@@ -134,10 +148,20 @@ create table if not exists public.usage_events (
   model text,
   input_tokens integer not null default 0,
   output_tokens integer not null default 0,
+  -- What it cost, in micro-dollars — millionths of a dollar, so 2.4c is 24000.
+  -- An integer because money in a float drifts; bigint because a busy month
+  -- overflows an int. Recorded at the moment of the call rather than derived
+  -- later, since rates change and a cost recomputed at today's prices against
+  -- last quarter's traffic looks precise and isn't.
+  cost_micros bigint not null default 0,
+  -- Whether the reply paid a per-request search fee. On Sonar that fee is over
+  -- half the cost of a message, so a cost is not explainable without it.
+  searched boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 create index if not exists usage_user_month_idx on public.usage_events (user_id, created_at desc);
+create index if not exists usage_cost_idx on public.usage_events (created_at desc);
 
 /* -------------------------------- failures ------------------------------- */
 
@@ -187,6 +211,7 @@ alter table public.connectors enable row level security;
 alter table public.connector_secrets enable row level security;
 alter table public.usage_events enable row level security;
 alter table public.failures enable row level security;
+alter table public.user_keys enable row level security;
 
 do $$
 declare
@@ -234,6 +259,7 @@ grant select on public.usage_events to authenticated;
 
 revoke all on public.connector_secrets from anon, authenticated;
 revoke all on public.failures from anon, authenticated;
+revoke all on public.user_keys from anon, authenticated;
 
 /* ------------------------------- new users ------------------------------ */
 

@@ -178,7 +178,12 @@ async function converse(req, res, { system, messages, settings, connectors, kind
 
   // Everything below happens after the reply is on screen, so no bookkeeping
   // can delay or break an answer that already worked.
-  if (user) await recordUsage(user.id, { kind, model: model.name, ...usage });
+  //
+  // The provider reports which model it actually used — "sonar-reasoning-pro",
+  // not "Perplexity". The rate table is keyed by model id, so passing the
+  // provider's display name here would price every call as unknown and quietly
+  // make the margin figure fiction.
+  if (user) await recordUsage(user.id, { kind, ...usage });
 
   // Saying "I don't know" is the behaviour we want, not a bug — and it is also
   // the clearest evidence there is of what the product can't do yet, which is

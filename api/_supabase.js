@@ -5,6 +5,7 @@
 // this file. The underscore keeps Vercel from turning it into a route.
 
 import { createClient } from "@supabase/supabase-js";
+import { costOf, planFor } from "./_pricing.js";
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,10 +14,18 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // is how `npm run dev` works before you've set any of this up.
 export const hasSupabase = Boolean(url && serviceKey);
 
-// A cap per user per calendar month, counting input and output tokens together.
-// Set to 0 to remove it. This is the difference between one enthusiastic tester
-// and a bill you didn't agree to.
-export const MONTHLY_TOKEN_CAP = Number(process.env.SELFLIGHT_MONTHLY_TOKEN_CAP ?? 2_000_000);
+// A deployment-wide override for the per-plan cap, counting input and output
+// tokens together. Unset means every account gets its plan's allowance, which
+// is the intended behaviour once there's something to sell; set it while
+// everyone is on the same footing. 0 removes the limit entirely.
+//
+// Null rather than a number when unset, so "no override" and "no limit" stay
+// distinguishable — a `?? 2_000_000` default would silently outrank every plan.
+export const MONTHLY_TOKEN_CAP =
+  process.env.SELFLIGHT_MONTHLY_TOKEN_CAP === undefined ||
+  process.env.SELFLIGHT_MONTHLY_TOKEN_CAP === ""
+    ? null
+    : Number(process.env.SELFLIGHT_MONTHLY_TOKEN_CAP);
 
 let admin;
 
@@ -78,27 +87,70 @@ function monthStart() {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
 }
 
-// Returns { used, cap, exceeded }. A failure to read usage is not a reason to
-// refuse someone service, so it fails open and says so in the log.
+/**
+ * Which plan someone is on. Null, unknown, or unreadable all mean free — the
+ * cheapest answer, so a database hiccup can never hand out an unlimited
+ * allowance by accident.
+ */
+export async function planOf(userId) {
+  if (!userId) return planFor("free");
+
+  const { data, error } = await db()
+    .from("profiles")
+    .select("plan, plan_since")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) console.error(`[api] reading plan: ${error.message}`);
+  return { ...planFor(data?.plan), since: data?.plan_since || null };
+}
+
+/**
+ * Returns { used, cap, exceeded, spent, plan }, where `used` is tokens and
+ * `spent` is micro-dollars.
+ *
+ * The cap comes from the person's plan, with SELFLIGHT_MONTHLY_TOKEN_CAP as an
+ * override for a deployment that isn't selling anything yet — which is what
+ * every deployment is on its first day.
+ *
+ * Reading usage failing is not a reason to refuse somebody service, so it fails
+ * open and says so in the log.
+ */
 export async function usageThisMonth(userId) {
-  if (!MONTHLY_TOKEN_CAP) return { used: 0, cap: 0, exceeded: false };
+  const plan = await planOf(userId);
+  // An explicit env cap wins, then the plan's. Zero in either means no limit —
+  // which is right for bring-your-own-key, where the tokens aren't ours.
+  const cap = MONTHLY_TOKEN_CAP ?? plan.cap;
 
   const { data, error } = await db()
     .from("usage_events")
-    .select("input_tokens, output_tokens")
+    .select("input_tokens, output_tokens, cost_micros")
     .eq("user_id", userId)
     .gte("created_at", monthStart());
 
   if (error) {
     console.error(`[api] reading usage: ${error.message}`);
-    return { used: 0, cap: MONTHLY_TOKEN_CAP, exceeded: false };
+    return { used: 0, spent: 0, cap, plan, exceeded: false };
   }
 
-  const used = (data || []).reduce((sum, r) => sum + r.input_tokens + r.output_tokens, 0);
-  return { used, cap: MONTHLY_TOKEN_CAP, exceeded: used >= MONTHLY_TOKEN_CAP };
+  const rows = data || [];
+  const used = rows.reduce((sum, r) => sum + r.input_tokens + r.output_tokens, 0);
+  const spent = rows.reduce((sum, r) => sum + Number(r.cost_micros || 0), 0);
+
+  return { used, spent, cap, plan, exceeded: Boolean(cap) && used >= cap };
 }
 
-export async function recordUsage(userId, { kind = "chat", model, input = 0, output = 0 }) {
+/**
+ * One row per model call, priced at the moment it happened.
+ *
+ * The cost is computed here rather than derived later on purpose: rates change,
+ * and a figure recomputed at today's prices against last quarter's traffic
+ * looks precise and isn't.
+ */
+export async function recordUsage(
+  userId,
+  { kind = "chat", model, input = 0, output = 0, searched = true }
+) {
   if (!userId || (!input && !output)) return;
 
   const { error } = await db().from("usage_events").insert({
@@ -106,7 +158,9 @@ export async function recordUsage(userId, { kind = "chat", model, input = 0, out
     kind,
     model,
     input_tokens: input,
-    output_tokens: output
+    output_tokens: output,
+    searched,
+    cost_micros: costOf({ model, input, output, searched })
   });
 
   // Never fail a reply that already happened because the bookkeeping didn't.

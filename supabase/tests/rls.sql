@@ -147,6 +147,23 @@ select t.blocked('a signed-in user cannot read the failure log',
 select t.blocked('nor plant an entry in it',
   'insert into public.failures (kind, summary, fingerprint) values (''model'', ''forged'', ''fp-forged'')');
 
+/* ------------------------------- own keys ------------------------------- */
+
+-- Somebody on the bring-your-own-key plan is trusting us with a credential that
+-- spends their money. Same treatment as a connector token: unreadable, and not
+-- plantable either — a forged row would route their traffic through our key.
+set role service_role;
+insert into public.user_keys (user_id, provider, key)
+values (:'A', 'perplexity', 'pplx-not-a-real-key');
+select t.check('the server can store somebody''s own API key',
+  (select count(*) from public.user_keys) = 1);
+
+set role authenticated;
+select t.blocked('the owner cannot read their own API key back',
+  'select count(*) from public.user_keys');
+select t.blocked('nor plant one for somebody else',
+  'insert into public.user_keys (user_id, provider, key) values (''00000000-0000-0000-0000-000000000009'', ''perplexity'', ''stolen'')');
+
 /* -------------------------------- usage --------------------------------- */
 
 set role service_role;

@@ -80,7 +80,10 @@ async function stream(body, { signal, emit, reasoning }) {
   const decoder = new TextDecoder();
 
   let buffer = "";
-  let usage = { input: 0, output: 0 };
+  // The model id and whether a search fee was paid, so api/_supabase.js can
+  // price the call. Without the id every reply is billed as an unknown model,
+  // and the whole margin figure is guesswork wearing a decimal point.
+  let usage = { input: 0, output: 0, model: body.model, searched: false };
   let emittedSources = false;
   let sent = "";
   let thinking = false;
@@ -109,6 +112,7 @@ async function stream(body, { signal, emit, reasoning }) {
 
       if (chunk.usage) {
         usage = {
+          ...usage,
           input: chunk.usage.prompt_tokens || 0,
           output: chunk.usage.completion_tokens || 0
         };
@@ -149,7 +153,9 @@ async function stream(body, { signal, emit, reasoning }) {
     }
   }
 
-  return usage;
+  // Sources coming back is the evidence a per-request search fee was charged —
+  // on Sonar that fee is over half the cost of a message.
+  return { ...usage, searched: emittedSources };
 }
 
 function toSources(chunk) {

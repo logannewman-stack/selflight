@@ -9,6 +9,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { provider } from "./provider.js";
 import { MONTHLY_TOKEN_CAP, hasSupabase } from "./_supabase.js";
+import { PLANS, marginOf, money } from "./_pricing.js";
 
 const TABLES = [
   "profiles",
@@ -19,10 +20,18 @@ const TABLES = [
   "connectors",
   "connector_secrets",
   "usage_events",
-  "failures"
+  "failures",
+  "user_keys"
 ];
 
-const PRIVATE_TABLES = ["chats", "messages", "user_settings", "connector_secrets", "failures"];
+const PRIVATE_TABLES = [
+  "chats",
+  "messages",
+  "user_settings",
+  "connector_secrets",
+  "failures",
+  "user_keys"
+];
 
 // Columns the app gained after the first version of the schema, each with the
 // migration that adds it. A database created before one of these fails every
@@ -40,7 +49,11 @@ export const RECENT_COLUMNS = [
   ["connectors", "provider", "0003_connections.sql"],
   ["connectors", "account", "0003_connections.sql"],
   ["connector_secrets", "refresh_token", "0003_connections.sql"],
-  ["connector_secrets", "expires_at", "0003_connections.sql"]
+  ["connector_secrets", "expires_at", "0003_connections.sql"],
+  ["usage_events", "cost_micros", "0005_money.sql"],
+  ["usage_events", "searched", "0005_money.sql"],
+  ["profiles", "plan", "0005_money.sql"],
+  ["profiles", "plan_since", "0005_money.sql"]
 ];
 
 export default async function handler(req, res) {
@@ -49,7 +62,26 @@ export default async function handler(req, res) {
   const report = {
     model: await checkModel(live),
     accounts: await checkAccounts(),
-    cap: MONTHLY_TOKEN_CAP
+    cap: MONTHLY_TOKEN_CAP,
+    // What's on sale, with the margin arithmetic already done. Published here
+    // rather than restated in the interface, so a price can only ever be
+    // changed in one place.
+    plans: Object.values(PLANS).map((plan) => {
+      const { revenue, worstCost, ratio } = marginOf(plan);
+      return {
+        id: plan.id,
+        name: plan.name,
+        blurb: plan.blurb,
+        priceCents: plan.priceCents,
+        messages: plan.cap ? Math.round(plan.cap / 4600) : null,
+        connectors: plan.connectors,
+        margin: {
+          revenue: money(revenue),
+          worstCost: money(worstCost),
+          worstRatio: Math.round(ratio * 100)
+        }
+      };
+    })
   };
 
   report.ready = report.model.ok && report.accounts.state !== "broken";
@@ -195,13 +227,29 @@ async function checkAccounts() {
 
   const { data: usage } = await admin
     .from("usage_events")
-    .select("input_tokens, output_tokens")
+    .select("user_id, input_tokens, output_tokens, cost_micros")
     .gte("created_at", monthStart());
 
-  report.tokensThisMonth = (usage || []).reduce(
-    (sum, row) => sum + row.input_tokens + row.output_tokens,
-    0
-  );
+  const rows = usage || [];
+  report.tokensThisMonth = rows.reduce((sum, r) => sum + r.input_tokens + r.output_tokens, 0);
+
+  // What it actually costs, which is the only version of this number that can
+  // be compared against a price. Tokens tell you nothing about whether the
+  // business works.
+  const spent = rows.reduce((sum, r) => sum + Number(r.cost_micros || 0), 0);
+  const spenders = new Set(rows.map((r) => r.user_id)).size;
+
+  report.spend = {
+    micros: spent,
+    display: money(spent),
+    activeUsers: spenders,
+    // The figure that decides pricing: what one person who actually uses it
+    // costs to serve for a month. An average over signups instead of over
+    // *users* would flatter it with everyone who never came back.
+    perActiveUser: spenders ? money(Math.round(spent / spenders)) : money(0),
+    perMessage: rows.length ? money(Math.round(spent / rows.length)) : money(0),
+    calls: rows.length
+  };
 
   // Counts only. What broke is in the failure log, which needs a secret to
   // read — but knowing *whether* anything is broken shouldn't.

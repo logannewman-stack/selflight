@@ -70,7 +70,15 @@ export async function converse({ system, messages, settings = {}, connectors = [
     break;
   }
 
-  return { input: state.input, output: state.output };
+  // `searched` follows whether web search was actually available this turn:
+  // Claude's search is a tool with a per-request fee, so a turn that never
+  // reached for it never paid one.
+  return {
+    input: state.input,
+    output: state.output,
+    model: MODEL,
+    searched: settings.webSearch !== false
+  };
 }
 
 // Tries the richest request first and steps down through the parts an account
