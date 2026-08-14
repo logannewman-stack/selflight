@@ -10,6 +10,7 @@ import { admittedNotKnowing, record } from "./_failures.js";
 import {
   connectorsFor,
   hasSupabase,
+  projectFor,
   recordUsage,
   usageThisMonth,
   userFromRequest
@@ -59,8 +60,25 @@ export default async function handler(req, res) {
   // trusted to describe its own connectors, and then only to itself.
   const connectors = build ? [] : user ? await connectorsFor(user.id) : body.connectors || [];
 
+  // A chat inside a project answers with the project's instructions in the
+  // system prompt. Looked up server-side by (project, owner) rather than taken
+  // from the request, so the instructions are always the stored ones.
+  // Signed in, the stored row is authoritative. Signed out there is no row to
+  // read, so the browser sends its own project the same way it already sends
+  // its own standing instructions — they're the same person's text either way.
+  const project = build
+    ? null
+    : user
+      ? await projectFor(user.id, body.projectId)
+      : body.project || null;
+
   return converse(req, res, {
-    system: build ? BUILD_PROMPT : composeSystemPrompt(settings),
+    system: build
+      ? BUILD_PROMPT
+      : composeSystemPrompt(settings, {
+          projectName: project?.name,
+          projectInstructions: project?.instructions
+        }),
     messages,
     settings,
     connectors,

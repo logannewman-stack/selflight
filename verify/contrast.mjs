@@ -103,8 +103,23 @@ const MEASURE = () => {
       })()
     : null;
 
+  // Small pills are the easiest thing to get wrong, because they set their own
+  // background and the palette was only ever checked against the page.
+  // Must have text in it. The first version matched the decorative dot on each
+  // chat row — a 6px circle with no content — and measured its inherited colour
+  // against its own background, which is a number that means nothing and never
+  // moved when the real badge was fixed.
+  const badge = [...document.querySelectorAll("nav span[class*='rounded-full']")].find(
+    (el) => el.textContent.trim().length > 0
+  );
+  const segment = [...document.querySelectorAll("button")].find(
+    (b) => b.textContent.trim() === "Code"
+  );
+
   return {
     reply: of([...document.querySelectorAll(".stack-msg p")].pop()),
+    sidebarBadge: of(badge),
+    modeSwitch: of(segment),
     yourMessage: of(document.querySelector(".stack-msg div[class*='bg-bubble']")),
     code: of(document.querySelector(".stack-msg code")),
     sidebarChat: of(document.querySelector("nav[aria-label='Conversations'] button span:nth-child(2)")),
@@ -126,7 +141,9 @@ const FLOORS = {
   sidebarHeading: AA_LARGE,
   caveat: AA_LARGE,
   composerPlaceholder: AA_LARGE,
-  modelPicker: AA_LARGE
+  modelPicker: AA_LARGE,
+  sidebarBadge: AA_LARGE,
+  modeSwitch: AA
 };
 
 async function measure(label, settings, { floor = null } = {}) {

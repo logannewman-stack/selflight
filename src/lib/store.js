@@ -73,9 +73,13 @@ const localStore = {
 
   chats: {
     async list() {
-      return local
-        .listChats()
-        .map(({ id, title, updatedAt, pinned }) => ({ id, title, updatedAt, pinned: Boolean(pinned) }));
+      return local.listChats().map(({ id, title, updatedAt, pinned, projectId }) => ({
+        id,
+        title,
+        updatedAt,
+        pinned: Boolean(pinned),
+        projectId: projectId || null
+      }));
     },
     async search(query) {
       return local.searchMessages(query);
@@ -87,8 +91,11 @@ const localStore = {
       return local.listChats().find((c) => c.id === id)?.messages || [];
     },
     async create(chat) {
-      const { id, title, updatedAt } = local.createChat(chat);
-      return { id, title, updatedAt };
+      const { id, title, updatedAt, projectId } = local.createChat(chat);
+      return { id, title, updatedAt, projectId };
+    },
+    async setProject(id, projectId) {
+      local.setChatProject(id, projectId);
     },
     async saveMessages(id, messages) {
       local.saveMessages(id, messages);
@@ -121,6 +128,21 @@ const localStore = {
     },
     async remove(id) {
       localPalettes.deletePalette(id);
+    }
+  },
+
+  projects: {
+    async list() {
+      return local.listProjects();
+    },
+    async create(project) {
+      return local.createProject(project);
+    },
+    async update(id, fields) {
+      local.updateProject(id, fields);
+    },
+    async remove(id) {
+      local.deleteProject(id);
     }
   },
 
@@ -175,7 +197,7 @@ function remoteStore(user) {
       async list() {
         const { data, error } = await supabase
           .from("chats")
-          .select("id, title, updated_at, pinned")
+          .select("id, title, updated_at, pinned, project_id")
           // Pinned first, then most recent — matching the local store, so the
           // sidebar doesn't reshuffle when somebody signs in.
           .order("pinned", { ascending: false })
@@ -186,6 +208,7 @@ function remoteStore(user) {
           id: row.id,
           title: row.title,
           pinned: Boolean(row.pinned),
+          projectId: row.project_id || null,
           updatedAt: new Date(row.updated_at).getTime()
         }));
       },
@@ -250,22 +273,27 @@ function remoteStore(user) {
         }));
       },
 
-      async create({ title, messages }) {
+      async create({ title, messages, projectId = null }) {
         const { data, error } = await supabase
           .from("chats")
-          .insert({ user_id: uid, title })
-          .select("id, title, updated_at")
+          .insert({ user_id: uid, title, project_id: projectId })
+          .select("id, title, updated_at, project_id")
           .single();
 
         if (error || !data) {
           fail("starting a chat", error);
           // Losing the reply because the write failed would be worse than
           // losing the history, so carry on with an in-memory conversation.
-          return { id: `pending-${Date.now()}`, title, updatedAt: Date.now(), pending: true };
+          return { id: `pending-${Date.now()}`, title, projectId, updatedAt: Date.now(), pending: true };
         }
 
         await this.saveMessages(data.id, messages);
-        return { id: data.id, title: data.title, updatedAt: new Date(data.updated_at).getTime() };
+        return {
+          id: data.id,
+          title: data.title,
+          projectId: data.project_id || null,
+          updatedAt: new Date(data.updated_at).getTime()
+        };
       },
 
       // The browser holds the authoritative thread, so this syncs by position:
@@ -305,6 +333,15 @@ function remoteStore(user) {
         if (String(id).startsWith("pending-")) return;
         const { error } = await supabase.from("chats").update({ title }).eq("id", id);
         fail("renaming a chat", error);
+      },
+
+      async setProject(id, projectId) {
+        if (String(id).startsWith("pending-")) return;
+        const { error } = await supabase
+          .from("chats")
+          .update({ project_id: projectId || null })
+          .eq("id", id);
+        fail("moving a chat into a project", error);
       },
 
       async remove(id) {
@@ -374,6 +411,50 @@ function remoteStore(user) {
       async remove(id) {
         const { error } = await supabase.from("palettes").delete().eq("id", id);
         fail("deleting a colour package", error);
+      }
+    },
+
+    projects: {
+      async list() {
+        const { data, error } = await supabase
+          .from("projects")
+          .select("id, name, instructions, updated_at")
+          .order("updated_at", { ascending: false });
+        fail("loading projects", error);
+        return (data || []).map((row) => ({
+          id: row.id,
+          name: row.name,
+          instructions: row.instructions || "",
+          updatedAt: new Date(row.updated_at).getTime()
+        }));
+      },
+
+      async create({ name, instructions = "" }) {
+        const { data, error } = await supabase
+          .from("projects")
+          .insert({ user_id: uid, name, instructions })
+          .select("id, name, instructions, updated_at")
+          .single();
+        if (error || !data) {
+          fail("starting a project", error);
+          return null;
+        }
+        return { ...data, instructions: data.instructions || "" };
+      },
+
+      async update(id, fields) {
+        const patch = { updated_at: new Date().toISOString() };
+        if (fields.name !== undefined) patch.name = fields.name;
+        if (fields.instructions !== undefined) patch.instructions = fields.instructions;
+        const { error } = await supabase.from("projects").update(patch).eq("id", id);
+        fail("saving a project", error);
+      },
+
+      // The chats survive; project_id is `on delete set null`. A delete that
+      // silently took a month of conversations with it would be unforgivable.
+      async remove(id) {
+        const { error } = await supabase.from("projects").delete().eq("id", id);
+        fail("deleting a project", error);
       }
     },
 

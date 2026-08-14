@@ -70,10 +70,53 @@ async function consume(res, { onText, onThinking, onActivity, onNotice, onSource
 }
 
 export async function streamChat(messages, options = {}) {
-  const { settings, connectors, signal, ...handlers } = options;
-  const res = await post({ messages, settings, connectors }, signal);
+  const { settings, connectors, project, signal, ...handlers } = options;
+  // `projectId` is what a signed-in request needs — the server reads the stored
+  // row. `project` carries the instructions themselves for a signed-out one,
+  // which has no row to read, exactly as `settings.instructions` already does.
+  const res = await post(
+    { messages, settings, connectors, projectId: project?.id || null, project },
+    signal
+  );
   await consume(res, handlers);
 }
+
+/* -------------------------------- routines -------------------------------- */
+
+// Routines live entirely on the server: they run while nobody is here, so
+// there's no browser-side half to fall back to.
+async function routineFetch(path, options = {}) {
+  try {
+    const res = await fetch(`/api/routines${path}`, { ...options, headers: await headers() });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) return { error: body?.error || `That didn't work (${res.status}).` };
+    return body || {};
+  } catch (err) {
+    return { error: `Couldn't reach Selflight: ${err.message}` };
+  }
+}
+
+export const routineApi = {
+  async list() {
+    const body = await routineFetch("?runs=1");
+    return body.error ? null : body;
+  },
+  create(routine) {
+    return routineFetch("", { method: "POST", body: JSON.stringify(routine) });
+  },
+  update(id, fields) {
+    return routineFetch(`?id=${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(fields)
+    });
+  },
+  remove(id) {
+    return routineFetch(`?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+  run(id) {
+    return routineFetch(`?id=${encodeURIComponent(id)}&action=run`, { method: "POST" });
+  }
+};
 
 export async function streamBuild(messages, options = {}) {
   const { signal, ...handlers } = options;

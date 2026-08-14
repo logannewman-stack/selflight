@@ -122,6 +122,37 @@ refused with the reason and what to do instead — every provider here is handed
 one and sending nothing would look identical to working, right up until the answer is
 confidently about a file the model never saw.
 
+**Projects.** A folder with a memory. A project holds its own instructions, and every chat
+inside it answers with them in the system prompt — the context you'd otherwise retype at the
+top of each conversation, said once. Project instructions take precedence over your
+account-wide ones, so "always answer in French" globally and "this project is in English" on
+the project means the project. Deleting a project keeps its conversations; they just stop
+being in it.
+
+**Routines.** A question on a timer, with somewhere for the answer to go. Three fields in the
+order you'd say them — **when**, **what**, **where** — and a sentence underneath that reads
+back what you've built: *"Every Tuesday at 09:00, ask 'what shipped last week?' and send it to
+a new chat."*
+
+Deliberately not a node canvas. Almost everything people actually want from one is "ask this
+every morning and send it to me", and a canvas makes that a twenty-minute job for someone who
+already knows what a webhook is. Cadences are hourly, daily, weekdays, weekly, or monthly;
+delivery is a new chat, an email, a webhook, or any combination. **Run now** tests one without
+spending the scheduled run.
+
+Times are wall-clock in your own zone, stored by IANA name rather than as an offset — 8am
+stays 8am across a daylight-saving change instead of drifting by an hour for half the year.
+Monthly routines are capped at the 28th so one can never silently skip February. Every firing
+writes a row whether it worked or not, and the last one shows under the routine: a routine
+that quietly stopped producing anything is the failure worth being able to see, and without
+that row "it ran and returned nothing" looks exactly like "it never ran".
+
+Routines need an account, and the scheduler needs two things set on Vercel — `CRON_SECRET`,
+without which `/api/cron` refuses everything but Vercel's own signed calls, and a cron entry
+(already in `vercel.json`, every 15 minutes). Note that **Vercel's Hobby plan only runs cron
+once a day**; minute-level schedules need Pro. Email delivery goes through `N8N_WEBHOOK_URL`,
+and says so plainly if that isn't set rather than reporting a delivery that never happened.
+
 **Dictation.** The microphone in the composer turns speech into text. Chrome, Edge and
 Safari recognise it in the browser — free, and words appear live as you talk. Firefox has
 no speech recognition at all, so it records instead and posts the audio to
@@ -215,6 +246,8 @@ on — the page and the sidebar panel:
 npm test                  # WCAG ratios for all seven palettes
 npm run verify:contrast   # the same ratios, read off rendered elements in a browser
 npm run verify:settings   # changes take effect and stick, signed out and signed in
+npm run verify:projects   # a project's instructions actually reach the model
+npm run verify:routines   # the routine form, and what it posts
 ```
 
 Those two disagreeing is how the last one was found: the palettes all passed on paper while
@@ -601,7 +634,7 @@ request pieces — system prompt, effort, tools, MCP servers — and `npm test` 
 directly. No network, no API key, no dependencies:
 
 ```bash
-npm test        # 278 tests
+npm test        # 334 tests
 ```
 
 It checks that tone changes the prompt, that standing instructions are passed through
@@ -691,6 +724,11 @@ app's queries name actually exists. 38 assertions and a schema cross-check; deta
 | `verify/speed.mjs` | Times opening a chat against a deliberately slow store. |
 | `verify/contrast.mjs` | Reads the colour of real elements and fails anything under the WCAG floor. |
 | `verify/settings.mjs` | Whether a setting takes effect and stays — including the signed-in path, against a fake Supabase project. |
+| `verify/projects.mjs` | Reads the request body to confirm a project's instructions are actually sent. |
+| `verify/routines.mjs` | The routine form, the sentence it reads back, and what it posts. |
+| `src/lib/schedule.js` | When a routine fires next. Zone-aware, dependency-free, tested across a year of DST. |
+| `api/cron.js` | The sweep. Claims a routine before running it, so a slow run can't be started twice. |
+| `api/_run.js` | Runs one routine and delivers the answer. Shared by the scheduler and "Run now". |
 | `scripts/doctor.mjs` | `npm run doctor` — checks the key, the schema, what the public key can read, and a deployment. |
 
 ## Things you'll probably want to change

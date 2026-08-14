@@ -166,3 +166,25 @@ export async function recordUsage(
   // Never fail a reply that already happened because the bookkeeping didn't.
   if (error) console.error(`[api] recording usage: ${error.message}`);
 }
+
+/**
+ * A project's name and instructions, or null.
+ *
+ * Read from the database with the user's id in the query rather than trusted
+ * from the request. The instructions are the person's own, so a forged id would
+ * only ever fetch something they can already see — but a lookup that ignores
+ * the owner is one refactor away from being a leak, and this one never was.
+ */
+export async function projectFor(userId, projectId) {
+  if (!hasSupabase || !userId || !projectId) return null;
+
+  const { data, error } = await db()
+    .from("projects")
+    .select("id, name, instructions")
+    .eq("id", projectId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data;
+}

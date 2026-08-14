@@ -47,10 +47,28 @@ create index if not exists palettes_user_idx on public.palettes (user_id, create
 
 /* -------------------------------- chats --------------------------------- */
 
+/* ------------------------------- projects ------------------------------- */
+
+-- A folder with a memory: chats belong to it, and its instructions go into the
+-- system prompt for every one of them.
+create table if not exists public.projects (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  instructions text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists projects_user_idx on public.projects (user_id, updated_at desc);
+
 create table if not exists public.chats (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   title text not null default 'New chat',
+  -- `set null`, not `cascade`: deleting a project keeps its conversations, they
+  -- just stop being in it.
+  project_id uuid references public.projects (id) on delete set null,
   -- Ordered ahead of updated_at in the sidebar, so a pinned chat stays at the
   -- top however long ago it was last touched.
   pinned boolean not null default false,
@@ -61,6 +79,7 @@ create table if not exists public.chats (
 create index if not exists chats_user_idx on public.chats (user_id, updated_at desc);
 create index if not exists chats_user_pinned_idx
   on public.chats (user_id, pinned desc, updated_at desc);
+create index if not exists chats_project_idx on public.chats (project_id, updated_at desc);
 
 -- Keyed by position rather than an identity column, because the client holds the
 -- authoritative thread: regenerating a reply replaces turn 5 rather than adding
@@ -214,6 +233,71 @@ create unique index if not exists failures_open_fingerprint_idx
 create index if not exists failures_status_idx on public.failures (status, created_at desc);
 create index if not exists failures_user_idx on public.failures (user_id);
 
+/* -------------------------------- routines ------------------------------- */
+
+-- A prompt on a timer, with somewhere for the answer to go. Deliberately not a
+-- node graph: when, what, where.
+create table if not exists public.routines (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  project_id uuid references public.projects (id) on delete set null,
+
+  name text not null,
+  prompt text not null,
+
+  every text not null default 'day',
+  -- Minutes past midnight in `zone`. 480 is 08:00.
+  at_minute integer not null default 480,
+  weekday integer,
+  -- 1..28 only, so a monthly routine never silently skips February.
+  day_of_month integer,
+  -- An IANA name rather than an offset, so 8am stays 8am across a
+  -- daylight-saving change instead of drifting by an hour for half the year.
+  zone text not null default 'UTC',
+
+  deliver jsonb not null default '["chat"]'::jsonb,
+  email text,
+  webhook text,
+
+  enabled boolean not null default true,
+  next_run_at timestamptz,
+  last_run_at timestamptz,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint routines_every_known check (every in ('hour', 'day', 'weekday', 'week', 'month')),
+  constraint routines_minute_in_day check (at_minute between 0 and 1439),
+  constraint routines_weekday_valid check (weekday is null or weekday between 0 and 6),
+  constraint routines_day_valid check (day_of_month is null or day_of_month between 1 and 28)
+);
+
+create index if not exists routines_due_idx on public.routines (next_run_at) where enabled;
+create index if not exists routines_user_idx on public.routines (user_id, created_at);
+
+-- One row per firing, kept whether it worked or not. Without it, "it ran and
+-- returned nothing" is indistinguishable from "it never ran".
+create table if not exists public.routine_runs (
+  id uuid primary key default gen_random_uuid(),
+  routine_id uuid not null references public.routines (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  chat_id uuid references public.chats (id) on delete set null,
+  status text not null default 'ok',
+  summary text,
+  detail text,
+  delivered jsonb not null default '[]'::jsonb,
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  cost_micros bigint not null default 0,
+  ms integer,
+  created_at timestamptz not null default now(),
+
+  constraint routine_runs_status_known check (status in ('ok', 'failed', 'skipped'))
+);
+
+create index if not exists routine_runs_routine_idx
+  on public.routine_runs (routine_id, created_at desc);
+
 /* ------------------------------ row security ---------------------------- */
 
 alter table public.profiles enable row level security;
@@ -226,6 +310,9 @@ alter table public.connector_secrets enable row level security;
 alter table public.usage_events enable row level security;
 alter table public.failures enable row level security;
 alter table public.user_keys enable row level security;
+alter table public.projects enable row level security;
+alter table public.routines enable row level security;
+alter table public.routine_runs enable row level security;
 
 do $$
 declare
@@ -233,7 +320,7 @@ declare
 begin
   -- Same shape for every user-owned table: you may do anything to your own
   -- rows and nothing at all to anyone else's.
-  foreach t in array array['profiles', 'user_settings', 'palettes', 'chats', 'messages', 'connectors']
+  foreach t in array array['profiles', 'user_settings', 'palettes', 'chats', 'messages', 'connectors', 'projects', 'routines', 'routine_runs']
   loop
     execute format('drop policy if exists own_rows on public.%I', t);
     execute format(

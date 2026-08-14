@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  CalendarClock,
   Code2,
+  FolderOpen,
   Home,
   Link2,
   LogOut,
@@ -47,6 +49,8 @@ export default function Sidebar({
   onSection,
   artifactCount,
   connectorCount,
+  projectCount,
+  routineCount,
   settingsTab,
   name,
   email,
@@ -179,6 +183,20 @@ export default function Sidebar({
           badge={artifactCount || null}
           active={section === "artifacts"}
           onClick={() => onSection("artifacts")}
+        />
+        <NavItem
+          icon={FolderOpen}
+          label="Projects"
+          badge={projectCount || null}
+          active={section === "projects"}
+          onClick={() => onSection("projects")}
+        />
+        <NavItem
+          icon={CalendarClock}
+          label="Routines"
+          badge={routineCount || null}
+          active={section === "routines"}
+          onClick={() => onSection("routines")}
         />
         <NavItem
           icon={Link2}
@@ -403,7 +421,10 @@ function NavItem({ icon: Icon, label, onClick, active, badge }) {
       <Icon className="h-4 w-4 shrink-0" strokeWidth={2} />
       <span className="flex-1 truncate">{label}</span>
       {badge ? (
-        <span className="rounded-full bg-line px-1.5 py-0.5 text-2xs font-bold text-muted">
+        // An outlined pill, not a filled one. `bg-line` is the border colour —
+        // near-black in High contrast and near-white in the dark palettes — so
+        // muted text on it measured 1.9–2.8:1 in every single theme.
+        <span className="rounded-full border border-line bg-surface px-1.5 py-0.5 text-2xs font-bold text-muted">
           {badge}
         </span>
       ) : null}

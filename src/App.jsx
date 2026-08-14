@@ -8,7 +8,7 @@ import SignIn from "./components/SignIn.jsx";
 import Setup from "./components/Setup.jsx";
 import Logo from "./components/Logo.jsx";
 import Build from "./components/panels/Build.jsx";
-import { capabilities, generateTitle, streamChat } from "./lib/api.js";
+import { capabilities, generateTitle, routineApi, streamChat } from "./lib/api.js";
 import { extractArtifacts } from "./lib/artifacts.js";
 import { BUILT_IN_THEMES, applyFonts, applyTheme, resolvePalette } from "./lib/themes.js";
 import * as fontCatalogue from "./lib/fonts.js";
@@ -82,6 +82,17 @@ export default function App() {
   // into the message text on send — there is no upload and nothing is stored
   // anywhere but the conversation itself.
   const [attachments, setAttachments] = useState([]);
+  // Projects and the routines that run inside them. Projects work signed out
+  // too — they're just instructions; routines need a server to fire them.
+  const [projects, setProjects] = useState([]);
+  const [openProject, setOpenProject] = useState(null);
+  // Which project a new chat belongs to. Set by "New chat in this project" and
+  // carried by an existing chat once it's opened.
+  const [chatProject, setChatProject] = useState(null);
+  const [routines, setRoutines] = useState([]);
+  const [routineRuns, setRoutineRuns] = useState([]);
+  const [routineBusy, setRoutineBusy] = useState(false);
+  const [routineError, setRoutineError] = useState(null);
 
   const [mode, setMode] = useState("chat");
   const [section, setSection] = useState(null);
@@ -199,18 +210,21 @@ export default function App() {
       // effect's own state updates.
       const wanted = lastChat();
 
-      const [nextChats, nextSettings, nextPalettes, nextConnectors] = await Promise.all([
-        store.chats.list(),
-        store.settings.load(),
-        store.palettes.list(),
-        store.connectors.list()
-      ]);
+      const [nextChats, nextSettings, nextPalettes, nextConnectors, nextProjects] =
+        await Promise.all([
+          store.chats.list(),
+          store.settings.load(),
+          store.palettes.list(),
+          store.connectors.list(),
+          store.projects.list()
+        ]);
       if (!live) return;
 
       setChats(nextChats);
       setSettings(nextSettings);
       setPalettes(nextPalettes);
       setConnectors(nextConnectors);
+      setProjects(nextProjects);
 
       // Land back in the conversation you were reading rather than on a blank
       // one. Only if it's still there — a chat deleted on another device, or one
@@ -295,6 +309,7 @@ export default function App() {
     setActiveId(null);
     setMessages([]);
     setAttachments([]);
+    setChatProject(null);
     setError(null);
     setNotice(null);
     setStreaming(false);
@@ -311,6 +326,7 @@ export default function App() {
       setActiveId(chat.id);
       // Files staged in one conversation shouldn't follow you into another.
       setAttachments([]);
+      setChatProject(chat.projectId ?? null);
       setError(null);
       setNotice(null);
       setStreaming(false);
@@ -503,6 +519,7 @@ export default function App() {
         signal: controller.signal,
         settings,
         connectors,
+        project: projects.find((p) => p.id === chatProject) || null,
         onThinking: narrate,
         onActivity: (next) => {
           if (!isCurrent()) return;
@@ -548,6 +565,115 @@ export default function App() {
     return { final, failed };
   };
 
+  /* ------------------------------- projects ------------------------------ */
+
+  const projectApi = useMemo(
+    () => ({
+      projects,
+      chats,
+      activeProjectId: openProject,
+      onOpen: setOpenProject,
+      onCreate: async (name) => {
+        const made = await store.projects.create({ name, instructions: "" });
+        if (!made) return;
+        setProjects(await store.projects.list());
+        setOpenProject(made.id);
+      },
+      onUpdate: async (id, fields) => {
+        // Optimistic: the instructions box saves as you type, and a round trip
+        // per keystroke-pause would make the field jump under the cursor.
+        setProjects((all) => all.map((p) => (p.id === id ? { ...p, ...fields } : p)));
+        await store.projects.update(id, fields);
+      },
+      onDelete: async (id) => {
+        await store.projects.remove(id);
+        setProjects(await store.projects.list());
+        setChats(await store.chats.list());
+        setOpenProject(null);
+      },
+      onNewChat: (id) => {
+        newChat();
+        setChatProject(id);
+        setSection(null);
+      }
+    }),
+    [projects, chats, openProject, store, newChat]
+  );
+
+  /* ------------------------------- routines ------------------------------ */
+
+  const loadRoutines = useCallback(async () => {
+    if (!user) return;
+    const found = await routineApi.list();
+    if (found) {
+      setRoutines(found.routines || []);
+      setRoutineRuns(found.runs || []);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (section === "routines") loadRoutines();
+  }, [section, loadRoutines]);
+
+  const routinePanel = useMemo(
+    () => ({
+      routines,
+      runs: routineRuns,
+      projects,
+      signedIn: Boolean(user),
+      busy: routineBusy,
+      error: routineError,
+      onCreate: async (routine) => {
+        setRoutineBusy(true);
+        setRoutineError(null);
+        const { error } = await routineApi.create(routine);
+        setRoutineBusy(false);
+        if (error) {
+          setRoutineError(error);
+          return false;
+        }
+        await loadRoutines();
+        return true;
+      },
+      onUpdate: async (id, fields) => {
+        setRoutineError(null);
+        const { error } = await routineApi.update(id, fields);
+        if (error) {
+          setRoutineError(error);
+          return false;
+        }
+        await loadRoutines();
+        return true;
+      },
+      onDelete: async (id) => {
+        await routineApi.remove(id);
+        await loadRoutines();
+      },
+      onRun: async (id) => {
+        setRoutineBusy(id);
+        setRoutineError(null);
+        const result = await routineApi.run(id);
+        setRoutineBusy(false);
+        // A manual run that failed says so here rather than only in the log —
+        // the whole point of pressing it is to find out.
+        if (result?.error) setRoutineError(result.error);
+        else if (result?.status && result.status !== "ok") {
+          setRoutineError(result.detail || result.summary || "That run didn't work.");
+        }
+        await loadRoutines();
+        setChats(await store.chats.list());
+      },
+      onOpenChat: async (chatId) => {
+        const chat = (await store.chats.list()).find((c) => c.id === chatId);
+        if (chat) {
+          setSection(null);
+          openChat(chat);
+        }
+      }
+    }),
+    [routines, routineRuns, projects, user, routineBusy, routineError, loadRoutines, store, openChat]
+  );
+
   const send = async (raw, { asCommand = true } = {}) => {
     const text = (raw ?? input).trim();
     const files = attachments;
@@ -586,7 +712,8 @@ export default function App() {
       // still leaves the question in history.
       const chat = await store.chats.create({
         title: fallbackTitle(text || files[0]?.name),
-        messages: base
+        messages: base,
+        projectId: chatProject
       });
       chatId = chat.id;
       chatIdRef.current = chatId;
@@ -755,6 +882,8 @@ export default function App() {
       onSection={toggleSection}
       artifactCount={artifacts.length}
       connectorCount={connectors.filter((c) => c.enabled).length}
+      projectCount={projects.length}
+      routineCount={routines.filter((r) => r.enabled).length}
       name={settings.callMe}
       email={user?.email}
       onSignOut={user ? signOut : null}
@@ -1030,6 +1159,8 @@ export default function App() {
       {section && (
         <div className="fixed inset-0 z-50 bg-page md:static md:z-auto md:shrink-0">
           <RightPanel
+            projects={projectApi}
+            routines={routinePanel}
             section={section}
             settingsTab={settingsTab}
             onSettingsTab={setSettingsTab}

@@ -109,7 +109,7 @@ function slug(name) {
   return cleaned || "connector";
 }
 
-export function composeSystemPrompt(settings = {}) {
+export function composeSystemPrompt(settings = {}, context = {}) {
   const parts = [BASE_PROMPT];
 
   const tone = TONES[settings.tone];
@@ -127,6 +127,18 @@ export function composeSystemPrompt(settings = {}) {
   const instructions = clip(settings.instructions, 2000);
   if (instructions) {
     parts.push(`Standing instructions from them — follow these unless a message overrides:\n${instructions}`);
+  }
+
+  // A project's own instructions, last so they win over the account-wide ones.
+  // Someone who sets "always answer in French" globally and "this project is in
+  // English" on a project means the project.
+  const project = clip(context.projectInstructions, 4000);
+  if (project) {
+    const name = clip(context.projectName, 80);
+    parts.push(
+      `This conversation is part of ${name ? `a project called "${name}"` : "a project"}. ` +
+        `Its instructions, which take precedence over the standing ones above:\n${project}`
+    );
   }
 
   return parts.join("\n\n");

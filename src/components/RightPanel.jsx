@@ -1,13 +1,17 @@
 import React from "react";
 import { ChevronLeft, X } from "lucide-react";
 import Artifacts from "./panels/Artifacts.jsx";
+import Projects from "./panels/Projects.jsx";
+import Routines from "./panels/Routines.jsx";
 import Settings from "./panels/Settings.jsx";
 import PaletteEditor from "./panels/PaletteEditor.jsx";
 
 const TITLES = {
   artifacts: "Artifacts",
   settings: "Settings",
-  palette: "Colour package"
+  palette: "Colour package",
+  projects: "Projects",
+  routines: "Routines"
 };
 
 export default function RightPanel({
@@ -20,7 +24,9 @@ export default function RightPanel({
   onSettings,
   connectors,
   themes,
-  palette
+  palette,
+  projects,
+  routines
 }) {
   return (
     <aside className="slide-in flex h-full w-full flex-col border-l border-line bg-page md:w-[400px] lg:w-[460px]">
@@ -52,6 +58,18 @@ export default function RightPanel({
 
       <div className="min-h-0 flex-1">
         {section === "artifacts" && <Artifacts artifacts={artifacts} />}
+
+        {section === "projects" && (
+          <div className="thin-scrollbar h-full overflow-y-auto p-4">
+            <Projects {...projects} />
+          </div>
+        )}
+
+        {section === "routines" && (
+          <div className="thin-scrollbar h-full overflow-y-auto p-4">
+            <Routines {...routines} />
+          </div>
+        )}
 
         {section === "settings" && (
           <Settings

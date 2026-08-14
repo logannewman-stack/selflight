@@ -5,6 +5,7 @@
 const CHATS = "selflight.chats.v1";
 const SETTINGS = "selflight.settings.v1";
 const CONNECTORS = "selflight.connectors.v1";
+const PROJECTS = "selflight.projects.v1";
 // Which conversation was open. Kept per device on purpose — a laptop and a
 // phone signed into the same account should each reopen where they were.
 const LAST = "selflight.lastChat.v1";
@@ -112,8 +113,8 @@ export function searchMessages(query, limit = 30) {
   return hits;
 }
 
-export function createChat({ title, messages }) {
-  const chat = { id: uid("c"), title, messages, pinned: false, updatedAt: Date.now() };
+export function createChat({ title, messages, projectId = null }) {
+  const chat = { id: uid("c"), title, messages, projectId, pinned: false, updatedAt: Date.now() };
   saveChats([chat, ...readChats()]);
   return chat;
 }
@@ -306,4 +307,51 @@ export function updateConnector(id, fields) {
 
 export function removeConnector(id) {
   save(CONNECTORS, listConnectors().filter((c) => c.id !== id));
+}
+
+/* ------------------------------- projects ------------------------------- */
+
+// A folder with a memory: chats belong to it, and its instructions go into the
+// system prompt for every one of them. Said once instead of at the top of every
+// chat, which is what people were doing by hand.
+
+export const MAX_INSTRUCTIONS = 4000;
+
+export function listProjects() {
+  const projects = load(PROJECTS, []);
+  return Array.isArray(projects) ? projects : [];
+}
+
+export function createProject({ name, instructions = "" }) {
+  const project = {
+    id: uid("p"),
+    name: String(name || "Untitled project").trim().slice(0, 80),
+    instructions: String(instructions || "").slice(0, MAX_INSTRUCTIONS),
+    updatedAt: Date.now()
+  };
+  save(PROJECTS, [...listProjects(), project]);
+  return project;
+}
+
+export function updateProject(id, fields) {
+  const patch = { ...fields };
+  if (patch.name !== undefined) patch.name = String(patch.name).trim().slice(0, 80);
+  if (patch.instructions !== undefined) {
+    patch.instructions = String(patch.instructions).slice(0, MAX_INSTRUCTIONS);
+  }
+  save(
+    PROJECTS,
+    listProjects().map((p) => (p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p))
+  );
+}
+
+// Deleting a project keeps its conversations; they just stop being in it. The
+// alternative is a delete that silently takes a month of chats with it.
+export function deleteProject(id) {
+  save(PROJECTS, listProjects().filter((p) => p.id !== id));
+  saveChats(readChats().map((c) => (c.projectId === id ? { ...c, projectId: null } : c)));
+}
+
+export function setChatProject(chatId, projectId) {
+  patchChat(chatId, { projectId: projectId || null }, { touch: false });
 }

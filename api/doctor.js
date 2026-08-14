@@ -21,7 +21,10 @@ const TABLES = [
   "connector_secrets",
   "usage_events",
   "failures",
-  "user_keys"
+  "user_keys",
+  "projects",
+  "routines",
+  "routine_runs"
 ];
 
 const PRIVATE_TABLES = [
@@ -30,7 +33,10 @@ const PRIVATE_TABLES = [
   "user_settings",
   "connector_secrets",
   "failures",
-  "user_keys"
+  "user_keys",
+  "projects",
+  "routines",
+  "routine_runs"
 ];
 
 // Columns the app gained after the first version of the schema, each with the
@@ -55,7 +61,12 @@ export const RECENT_COLUMNS = [
   ["profiles", "plan", "0005_money.sql"],
   ["profiles", "plan_since", "0005_money.sql"],
   ["chats", "pinned", "0006_chats.sql"],
-  ["messages", "search", "0006_chats.sql"]
+  ["messages", "search", "0006_chats.sql"],
+  // Only columns added to a table that already existed. A whole new table is
+  // caught by the table check above, and listing its columns here would claim a
+  // migration "adds" something it creates — which is what the test below
+  // objected to, correctly.
+  ["chats", "project_id", "0007_projects_routines.sql"]
 ];
 
 export default async function handler(req, res) {

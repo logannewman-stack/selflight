@@ -174,7 +174,7 @@ export default function Design({
                         </span>
                       )}
                       {theme.custom && (
-                        <span className="rounded-full bg-line px-1.5 py-0.5 text-2xs font-bold uppercase text-muted">
+                        <span className="rounded-full border border-line bg-surface px-1.5 py-0.5 text-2xs font-bold uppercase text-muted">
                           Yours
                         </span>
                       )}
