@@ -462,7 +462,9 @@ function remoteStore(user) {
       async list() {
         const { data, error } = await supabase
           .from("connectors")
-          .select("id, name, url, enabled, has_token, provider, account")
+          .select(
+            "id, name, url, enabled, has_token, provider, account, kind, base_url, methods, description"
+          )
           .order("created_at");
         fail("loading connectors", error);
         // `token` is never sent back — the row only admits that one exists.
@@ -476,15 +478,29 @@ function remoteStore(user) {
           hasToken: row.has_token,
           provider: row.provider || null,
           account: row.account || null,
+          kind: row.kind || "mcp",
+          baseUrl: row.base_url || null,
+          methods: Array.isArray(row.methods) ? row.methods : ["GET", "HEAD"],
+          description: row.description || "",
           token: ""
         }));
       },
 
-      async add({ name, url, token }) {
+      async add({ name, url, token, kind = "mcp", baseUrl, authStyle, authName, methods, description }) {
         const { data, error } = await supabase
           .from("connectors")
-          .insert({ user_id: uid, name, url })
-          .select("id, name, url, enabled, has_token")
+          .insert({
+            user_id: uid,
+            name,
+            url,
+            kind,
+            base_url: kind === "http" ? baseUrl || url : null,
+            auth_style: authStyle || "bearer",
+            auth_name: authName || null,
+            methods: methods || ["GET", "HEAD"],
+            description: description || null
+          })
+          .select("id, name, url, enabled, has_token, kind, base_url, methods")
           .single();
 
         if (error || !data) {
@@ -493,7 +509,17 @@ function remoteStore(user) {
         }
         if (token) await sendToken(data.id, token);
 
-        return { id: data.id, name, url, enabled: true, hasToken: Boolean(token), token: "" };
+        return {
+          id: data.id,
+          name,
+          url,
+          enabled: true,
+          hasToken: Boolean(token),
+          kind: data.kind,
+          baseUrl: data.base_url,
+          methods: data.methods,
+          token: ""
+        };
       },
 
       async update(id, fields) {

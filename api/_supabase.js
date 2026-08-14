@@ -67,7 +67,15 @@ export async function connectorsFor(userId) {
   const client = db();
 
   const [{ data: rows, error }, { data: secrets }] = await Promise.all([
-    client.from("connectors").select("id, name, url, enabled").eq("user_id", userId),
+    client
+      .from("connectors")
+      // The http columns come back too, or an API connector reaches the model
+      // as a tool with no address and every call fails on a field that was
+      // simply never selected.
+      .select(
+        "id, name, url, enabled, kind, base_url, auth_style, auth_name, methods, description, docs"
+      )
+      .eq("user_id", userId),
     client.from("connector_secrets").select("connector_id, token").eq("user_id", userId)
   ]);
 
@@ -77,7 +85,15 @@ export async function connectorsFor(userId) {
   }
 
   const tokens = new Map((secrets || []).map((s) => [s.connector_id, s.token]));
-  return (rows || []).map((row) => ({ ...row, token: tokens.get(row.id) || "" }));
+  return (rows || []).map((row) => ({
+    ...row,
+    kind: row.kind || "mcp",
+    baseUrl: row.base_url || null,
+    authStyle: row.auth_style || "bearer",
+    authName: row.auth_name || null,
+    methods: Array.isArray(row.methods) ? row.methods : ["GET", "HEAD"],
+    token: tokens.get(row.id) || ""
+  }));
 }
 
 /* --------------------------------- usage --------------------------------- */

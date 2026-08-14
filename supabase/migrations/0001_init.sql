@@ -131,7 +131,24 @@ create table if not exists public.connectors (
   provider text,
   -- Whose account, for display only: a GitHub login, a Notion workspace name.
   account text,
-  created_at timestamptz not null default now()
+
+  -- 'mcp' for a remote MCP server, 'http' for a plain REST API the model calls
+  -- itself. The second kind is what makes "connect it to anything" true.
+  kind text not null default 'mcp',
+  -- The host the model is pinned to. It chooses a path, never a destination.
+  base_url text,
+  -- 'bearer' | 'header' | 'query' | 'none'.
+  auth_style text not null default 'bearer',
+  auth_name text,
+  -- Read-only unless somebody widened it.
+  methods jsonb not null default '["GET","HEAD"]'::jsonb,
+  description text,
+  docs text,
+
+  created_at timestamptz not null default now(),
+
+  constraint connectors_kind_known check (kind in ('mcp', 'http')),
+  constraint connectors_http_has_base check (kind <> 'http' or base_url is not null)
 );
 
 create index if not exists connectors_user_idx on public.connectors (user_id);
@@ -139,8 +156,11 @@ create index if not exists connectors_user_idx on public.connectors (user_id);
 -- One connection per service per person, so signing in again replaces the
 -- token rather than leaving two rows answering for the same account. Partial,
 -- because hand-added connectors have no provider and there can be any number.
-create unique index if not exists connectors_user_provider_idx
-  on public.connectors (user_id, provider)
+-- One row per service per person. Keyed by name as well as provider because a
+-- single sign-in can produce several connectors: Google gives Gmail, Calendar,
+-- Drive and Sheets, which are different hosts sharing one token.
+create unique index if not exists connectors_user_provider_name_idx
+  on public.connectors (user_id, provider, name)
   where provider is not null;
 
 -- Tokens are deliberately a separate table with RLS on and *no policies*.

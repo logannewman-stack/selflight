@@ -153,6 +153,35 @@ without which `/api/cron` refuses everything but Vercel's own signed calls, and 
 once a day**; minute-level schedules need Pro. Email delivery goes through `N8N_WEBHOOK_URL`,
 and says so plainly if that isn't set rather than reporting a delivery that never happened.
 
+**Connect anything with an API.** Two kinds of connector now. The first is a remote MCP
+server, which the handful of services that publish one can use. The second is any REST API:
+give it a base address and a key, and it becomes a tool the model can call.
+
+That is also the most dangerous thing in the codebase — a model holding a credential and
+choosing a URL is a confused deputy, and everything it reads is trying to tell it what to do
+next. So the rules are enforced on the server in `api/_apis.js` and none of them are the
+model's to relax:
+
+- **The host is pinned.** The model picks a path, never a destination. This single rule makes
+  credential exfiltration and SSRF the same impossible thing — a full URL, a scheme-relative
+  `//evil.com`, a `../../` climb and a `user@evil.com` trick are each refused by name.
+- **https only, and never a private address.** Loopback, RFC1918, `.internal`, and
+  `169.254.169.254` — the cloud metadata endpoint that hands out infrastructure credentials
+  to anything on the box that asks.
+- **Read-only unless you tick the box.** A model that can `DELETE` by default is one confused
+  turn from a bad afternoon.
+- **The credential is injected server-side** and never appears in the tool definition. It
+  can't leak a value it was never given.
+- **Redirects are not followed** — a 302 to another host would walk straight past the pin.
+- **Responses are capped and labelled** as data rather than instructions.
+
+`api/apis.test.mjs` is that list written as an attacker would try it: 37 checks, most of them
+escape attempts.
+
+**Signing in to Google** produces four connectors — Gmail, Calendar, Drive and Sheets — from
+one token, because they're four different hosts and a connector is pinned to exactly one. All
+read-only scopes.
+
 **Dictation.** The microphone in the composer turns speech into text. Chrome, Edge and
 Safari recognise it in the browser — free, and words appear live as you talk. Firefox has
 no speech recognition at all, so it records instead and posts the audio to
@@ -634,7 +663,7 @@ request pieces — system prompt, effort, tools, MCP servers — and `npm test` 
 directly. No network, no API key, no dependencies:
 
 ```bash
-npm test        # 334 tests
+npm test        # 374 tests
 ```
 
 It checks that tone changes the prompt, that standing instructions are passed through
@@ -726,6 +755,7 @@ app's queries name actually exists. 38 assertions and a schema cross-check; deta
 | `verify/settings.mjs` | Whether a setting takes effect and stays — including the signed-in path, against a fake Supabase project. |
 | `verify/projects.mjs` | Reads the request body to confirm a project's instructions are actually sent. |
 | `verify/routines.mjs` | The routine form, the sentence it reads back, and what it posts. |
+| `api/_apis.js` | Lets the model call a connected API, and holds back everything it isn't allowed to do. |
 | `src/lib/schedule.js` | When a routine fires next. Zone-aware, dependency-free, tested across a year of DST. |
 | `api/cron.js` | The sweep. Claims a routine before running it, so a slow run can't be started twice. |
 | `api/_run.js` | Runs one routine and delivers the answer. Shared by the scheduler and "Run now". |

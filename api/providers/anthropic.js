@@ -7,6 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { effortFor, toMcpServers, toTools, toolsWithoutMcp } from "../prompt.js";
+import { callApi, toolFor, toolResult } from "../_apis.js";
 
 export const name = "Claude";
 export const keyName = "ANTHROPIC_API_KEY";
@@ -36,7 +37,12 @@ function anthropic() {
 export async function converse({ system, messages, settings = {}, connectors = [], kind, signal, emit }) {
   const build = kind === "build";
   const servers = build ? [] : toMcpServers(connectors);
-  const tools = build ? [] : toTools(settings, servers);
+  // Connectors come in two kinds. An MCP server is handed to Anthropic and run
+  // on their side; a plain API is a tool we define here and call ourselves.
+  const apis = build
+    ? []
+    : connectors.filter((c) => c.kind === "http" && c.enabled !== false && c.baseUrl);
+  const tools = build ? [] : [...toTools(settings, servers), ...apis.map((c) => toolFor(toRow(c)))];
 
   const base = {
     model: MODEL,
@@ -61,6 +67,46 @@ export async function converse({ system, messages, settings = {}, connectors = [
     // work back up where it stopped.
     if (message?.stop_reason === "pause_turn") {
       history = [...history, { role: "assistant", content: message.content }];
+      continue;
+    }
+
+    // A tool Claude can't run itself — an API the person connected. Anthropic
+    // runs its own tools and its own MCP servers; these are ours, so the call
+    // happens here and the answer goes back as another turn.
+    if (message?.stop_reason === "tool_use") {
+      const asked = (message.content || []).filter((block) => block.type === "tool_use");
+      if (!asked.length) break;
+
+      const results = [];
+      for (const call of asked) {
+        const connector = apis.find((c) => toolFor(toRow(c)).name === call.name);
+        if (!connector) {
+          results.push({
+            type: "tool_result",
+            tool_use_id: call.id,
+            is_error: true,
+            content: `No connector called ${call.name} is available.`
+          });
+          continue;
+        }
+
+        emit.activity({ kind: "connector", label: `${connector.name} · ${call.input?.method || "GET"} ${call.input?.path || ""}`.trim() });
+        const answer = await callApi(toRow(connector), call.input || {}, {
+          credential: connector.token || null
+        });
+        results.push({
+          type: "tool_result",
+          tool_use_id: call.id,
+          is_error: answer.ok === false,
+          content: toolResult(connector, answer)
+        });
+      }
+
+      history = [
+        ...history,
+        { role: "assistant", content: message.content },
+        { role: "user", content: results }
+      ];
       continue;
     }
 
@@ -255,4 +301,19 @@ export function describeError(err) {
 // about.
 export function unsupported() {
   return null;
+}
+
+
+// The browser and the database spell these differently; _apis.js speaks the
+// database's dialect, so this is the one place the two meet.
+function toRow(connector) {
+  return {
+    name: connector.name,
+    base_url: connector.baseUrl,
+    auth_style: connector.authStyle || "bearer",
+    auth_name: connector.authName || null,
+    methods: connector.methods,
+    description: connector.description,
+    docs: connector.docs
+  };
 }

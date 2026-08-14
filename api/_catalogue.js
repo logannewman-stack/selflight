@@ -71,6 +71,60 @@ export const PROVIDERS = [
     labelFrom: "workspace_name",
     register: "https://www.notion.so/my-integrations",
     docs: "https://developers.notion.com/docs/authorization"
+  },
+  {
+    id: "google",
+    name: "Google",
+    blurb: "Gmail, Calendar, Drive and Sheets.",
+    authorize: "https://accounts.google.com/o/oauth2/v2/auth",
+    token: "https://oauth2.googleapis.com/token",
+    exchange: { style: "form", auth: "body" },
+    // Read-only across the board. Google's write scopes are the ones that can
+    // send mail as you and delete a Drive, and nothing here needs them yet —
+    // asking for a scope "in case" is how a consent screen becomes a thing
+    // people decline.
+    scopes: [
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/calendar.readonly",
+      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/spreadsheets.readonly",
+      "openid",
+      "email"
+    ],
+    // Google publishes no MCP server, so a connection here becomes http
+    // connectors instead — one per service, sharing the one token.
+    mcp: null,
+    api: [
+      { name: "Gmail", base: "https://gmail.googleapis.com/gmail/v1", docs: "https://developers.google.com/gmail/api/reference/rest" },
+      { name: "Google Calendar", base: "https://www.googleapis.com/calendar/v3", docs: "https://developers.google.com/calendar/api/v3/reference" },
+      { name: "Google Drive", base: "https://www.googleapis.com/drive/v3", docs: "https://developers.google.com/drive/api/reference/rest/v3" },
+      { name: "Google Sheets", base: "https://sheets.googleapis.com/v4", docs: "https://developers.google.com/sheets/api/reference/rest" }
+    ],
+    // Refresh tokens only arrive with both of these, and only the first time —
+    // `prompt: consent` is what makes a second connection return one again.
+    extraAuthParams: { access_type: "offline", prompt: "consent" },
+    identity: { url: "https://www.googleapis.com/oauth2/v2/userinfo", field: "email" },
+    register: "https://console.cloud.google.com/apis/credentials",
+    docs: "https://developers.google.com/identity/protocols/oauth2/web-server"
+  },
+  {
+    id: "slack",
+    name: "Slack",
+    blurb: "Channels, messages and search across a workspace.",
+    authorize: "https://slack.com/oauth/v2/authorize",
+    token: "https://slack.com/api/oauth.v2.access",
+    exchange: { style: "form", auth: "body" },
+    // User scopes, so it reads what you can read and not what the whole
+    // workspace can.
+    scopes: ["channels:history", "channels:read", "search:read", "users:read"],
+    userScopes: true,
+    mcp: null,
+    api: [
+      { name: "Slack", base: "https://slack.com/api", docs: "https://api.slack.com/methods" }
+    ],
+    identity: { url: "https://slack.com/api/auth.test", field: "team" },
+    register: "https://api.slack.com/apps",
+    docs: "https://api.slack.com/authentication/oauth-v2"
   }
 ];
 
@@ -120,6 +174,10 @@ export function catalogue(env = process.env) {
     name: provider.name,
     blurb: provider.blurb,
     mcp: provider.mcp,
+    // What signing in actually gets you: an MCP server, or a set of APIs the
+    // model can call. Shown in the panel so "connected" means something
+    // specific rather than a green tick.
+    api: (provider.api || []).map((a) => a.name),
     ready: isConfigured(provider, env),
     missing: missingFor(provider, env),
     register: provider.register,

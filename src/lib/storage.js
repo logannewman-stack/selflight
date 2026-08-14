@@ -295,8 +295,20 @@ export function listConnectors() {
   return Array.isArray(connectors) ? connectors : [];
 }
 
-export function addConnector({ name, url, token }) {
-  const connector = { id: uid("mcp"), name, url, token: token || "", enabled: true };
+export function addConnector({ name, url, token, kind = "mcp", baseUrl, authStyle, authName, methods, description }) {
+  const connector = {
+    id: uid("mcp"),
+    name,
+    url,
+    token: token || "",
+    enabled: true,
+    kind,
+    baseUrl: kind === "http" ? baseUrl || url : null,
+    authStyle: authStyle || "bearer",
+    authName: authName || null,
+    methods: methods || ["GET", "HEAD"],
+    description: description || ""
+  };
   save(CONNECTORS, [...listConnectors(), connector]);
   return connector;
 }

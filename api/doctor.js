@@ -66,7 +66,14 @@ export const RECENT_COLUMNS = [
   // caught by the table check above, and listing its columns here would claim a
   // migration "adds" something it creates — which is what the test below
   // objected to, correctly.
-  ["chats", "project_id", "0007_projects_routines.sql"]
+  ["chats", "project_id", "0007_projects_routines.sql"],
+  ["connectors", "kind", "0008_apis.sql"],
+  ["connectors", "base_url", "0008_apis.sql"],
+  ["connectors", "auth_style", "0008_apis.sql"],
+  ["connectors", "methods", "0008_apis.sql"],
+  ["connectors", "auth_name", "0008_apis.sql"],
+  ["connectors", "description", "0008_apis.sql"],
+  ["connectors", "docs", "0008_apis.sql"]
 ];
 
 export default async function handler(req, res) {

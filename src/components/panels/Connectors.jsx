@@ -14,7 +14,21 @@ export default function Connectors({
   onRemove
 }) {
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ name: "", url: "", token: "" });
+  // Two kinds of thing live behind one button now: an MCP server, and any API
+  // with a base address and a key. The second is what makes "connect it to
+  // anything" true, so it's the default — far more services have an API than
+  // publish an MCP server.
+  const [form, setForm] = useState({
+    name: "",
+    url: "",
+    token: "",
+    kind: "http",
+    baseUrl: "",
+    authStyle: "bearer",
+    authName: "",
+    description: "",
+    writes: false
+  });
   const [problem, setProblem] = useState(null);
   // Which Connect button was pressed, so it can say so while the redirect is
   // still being arranged.
@@ -38,8 +52,54 @@ export default function Connectors({
     // On success the browser has already left for the provider.
   };
 
+  const reset = () =>
+    setForm({
+      name: "",
+      url: "",
+      token: "",
+      kind: "http",
+      baseUrl: "",
+      authStyle: "bearer",
+      authName: "",
+      description: "",
+      writes: false
+    });
+
+  // Checked here as well as on the server. The server's copy is the one that
+  // counts — this one exists so a mistake is answered instantly rather than
+  // after a round trip.
+  const submitApi = (name) => {
+    const baseUrl = form.baseUrl.trim();
+    if (!/^https:\/\//i.test(baseUrl)) {
+      return setProblem("The address has to start with https://");
+    }
+    if (/localhost|127\.0\.0\.1|169\.254\.|\b10\.|192\.168\.|\.local\b|\.internal\b/i.test(baseUrl)) {
+      return setProblem("That's a private address, not a public API.");
+    }
+    if ((form.authStyle === "header" || form.authStyle === "query") && !form.authName.trim()) {
+      return setProblem(
+        form.authStyle === "header" ? "Which header carries the key?" : "Which parameter carries the key?"
+      );
+    }
+
+    onAdd({
+      name,
+      kind: "http",
+      url: baseUrl,
+      baseUrl,
+      authStyle: form.authStyle,
+      authName: form.authName.trim() || null,
+      description: form.description.trim(),
+      methods: form.writes ? ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"] : ["GET", "HEAD"],
+      token: form.token.trim()
+    });
+    reset();
+  };
+
   const submit = () => {
     const name = form.name.trim();
+    if (form.kind === "http") return submitApi(name);
+
     const url = form.url.trim();
 
     if (!name) return setProblem("Give the connector a name.");
@@ -51,8 +111,8 @@ export default function Connectors({
     }
     if (!/^https:\/\//i.test(url)) return setProblem("The URL must start with https://");
 
-    onAdd({ name, url, token: form.token.trim() });
-    setForm({ name: "", url: "", token: "" });
+    onAdd({ name, url, token: form.token.trim(), kind: "mcp" });
+    reset();
     setProblem(null);
     setAdding(false);
   };
@@ -241,22 +301,120 @@ export default function Connectors({
 
         {adding ? (
           <div className="space-y-3 rounded-xl border border-line bg-surface p-3">
+            {/* Which kind, said in terms of what you have rather than what
+                the protocol is called. Nobody arrives knowing whether the
+                thing they want publishes an MCP server. */}
+            <div className="flex gap-1.5">
+              {[
+                ["http", "An API and a key"],
+                ["mcp", "An MCP server"]
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setForm({ ...form, kind: id })}
+                  aria-pressed={form.kind === id}
+                  className={`flex-1 rounded-lg border px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                    form.kind === id
+                      ? "border-accent bg-accent/10 text-ink"
+                      : "border-line text-muted hover:border-soft"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <Field
               label="Name"
-              placeholder="linear"
+              placeholder={form.kind === "http" ? "Stripe" : "linear"}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
+              hint={form.kind === "http" ? "What the model will call it." : undefined}
             />
+
+            {form.kind === "mcp" ? (
+              <Field
+                label="Server URL"
+                placeholder="https://mcp.example.com/sse"
+                value={form.url}
+                onChange={(e) => setForm({ ...form, url: e.target.value })}
+              />
+            ) : (
+              <>
+                <Field
+                  label="Base address"
+                  placeholder="https://api.stripe.com/v1"
+                  value={form.baseUrl}
+                  onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
+                  hint="The model picks a path under this. It can never reach another host."
+                />
+                <Field
+                  label="What it's for"
+                  placeholder="Payments, customers and invoices."
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  hint="One line. The model reads this to decide when to use it."
+                />
+
+                <div>
+                  <p className="mb-1 text-sm font-medium">How the key is sent</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      ["bearer", "Bearer token"],
+                      ["header", "A header"],
+                      ["query", "A query parameter"],
+                      ["none", "No key needed"]
+                    ].map(([id, label]) => (
+                      <button
+                        key={id}
+                        onClick={() => setForm({ ...form, authStyle: id })}
+                        aria-pressed={form.authStyle === id}
+                        className={`rounded-full border px-2.5 py-1 text-sm transition-colors ${
+                          form.authStyle === id
+                            ? "border-accent bg-accent/10 text-ink"
+                            : "border-line text-muted hover:border-soft"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {(form.authStyle === "header" || form.authStyle === "query") && (
+                  <Field
+                    label={form.authStyle === "header" ? "Header name" : "Parameter name"}
+                    placeholder={form.authStyle === "header" ? "X-Api-Key" : "api_key"}
+                    value={form.authName}
+                    onChange={(e) => setForm({ ...form, authName: e.target.value })}
+                  />
+                )}
+
+                {/* Off by default and deliberately blunt about it. A model that
+                    can DELETE by default is one confused turn from a bad
+                    afternoon, and the person turning this on should know that
+                    is what they are turning on. */}
+                <label className="flex items-start gap-2.5 rounded-lg border border-line bg-page p-2.5">
+                  <input
+                    type="checkbox"
+                    checked={form.writes}
+                    onChange={(e) => setForm({ ...form, writes: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--accent))]"
+                  />
+                  <span className="min-w-0 text-sm leading-relaxed">
+                    <span className="block font-medium">Let it change things</span>
+                    <span className="block text-muted">
+                      Without this it can only read. With it, the model can create, update and
+                      delete through this API on your behalf.
+                    </span>
+                  </span>
+                </label>
+              </>
+            )}
             <Field
-              label="Server URL"
-              placeholder="https://mcp.example.com/sse"
-              value={form.url}
-              onChange={(e) => setForm({ ...form, url: e.target.value })}
-            />
-            <Field
-              label="Auth token"
+              label={form.kind === "http" ? "Key" : "Auth token"}
               type="password"
-              placeholder="Optional"
+              placeholder={form.authStyle === "none" ? "Not needed" : "Optional"}
               value={form.token}
               onChange={(e) => setForm({ ...form, token: e.target.value })}
               hint={
@@ -270,7 +428,7 @@ export default function Connectors({
 
             <div className="flex gap-2">
               <Button variant="solid" onClick={submit}>
-                Add connector
+                {form.kind === "http" ? "Connect the API" : "Add connector"}
               </Button>
               <Button
                 variant="quiet"

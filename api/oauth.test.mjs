@@ -67,7 +67,16 @@ test("every service is complete enough to attempt", () => {
   for (const p of PROVIDERS) {
     assert.ok(p.id && p.name && p.blurb, `${p.id}: needs a name and a description`);
     assert.match(p.token, /^https:\/\//, `${p.id}: token endpoint must be https`);
-    assert.match(p.mcp, /^https:\/\//, `${p.id}: an MCP endpoint is what makes the token useful`);
+    // A token has to unlock something, but there are now two ways it can: a
+    // hosted MCP server, or a set of APIs the model calls directly. Google
+    // publishes no MCP server and is the reason this isn't one rule any more.
+    const unlocks = p.mcp || (p.api || []).length;
+    assert.ok(unlocks, `${p.id}: a token that unlocks nothing is not worth asking for`);
+    if (p.mcp) assert.match(p.mcp, /^https:\/\//, `${p.id}: MCP endpoint must be https`);
+    for (const api of p.api || []) {
+      assert.match(api.base, /^https:\/\//, `${p.id}: ${api.name} base must be https`);
+      assert.ok(api.name, `${p.id}: every API needs a name — it becomes the tool name`);
+    }
     assert.ok(p.register, `${p.id}: must say where to register an app`);
     assert.ok(["form", "json"].includes(p.exchange.style), `${p.id}: unknown exchange style`);
     assert.ok(["body", "basic"].includes(p.exchange.auth), `${p.id}: unknown credential placement`);
@@ -118,6 +127,15 @@ test("the browser is told what's missing but never a secret", () => {
 });
 
 test("no service points at an MCP endpoint another one also claims", () => {
-  const urls = PROVIDERS.map((p) => p.mcp);
+  // Only among those that have one — `null` is not a collision, and counting it
+  // as one made adding a second MCP-less service fail for no reason.
+  const urls = PROVIDERS.map((p) => p.mcp).filter(Boolean);
   assert.equal(new Set(urls).size, urls.length);
+});
+
+test("no two services would produce the same API tool name", () => {
+  // Tool names are derived from the API name, and two tools with one name is a
+  // model calling something other than what it meant.
+  const names = PROVIDERS.flatMap((p) => (p.api || []).map((a) => a.name));
+  assert.equal(new Set(names).size, names.length, names.join(", "));
 });

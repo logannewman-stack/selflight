@@ -170,7 +170,17 @@ export function toMcpServers(connectors) {
   const seen = new Set();
 
   return connectors
-    .filter((c) => c?.enabled !== false && typeof c?.url === "string" && /^https:\/\//i.test(c.url))
+    // `kind` matters as much as the URL here. An API connector also has an
+    // https address, and without this it would be handed to Anthropic as an MCP
+    // server — which it isn't, so every turn using one would fail on a
+    // connection to something that doesn't speak the protocol.
+    .filter(
+      (c) =>
+        c?.enabled !== false &&
+        (c?.kind || "mcp") === "mcp" &&
+        typeof c?.url === "string" &&
+        /^https:\/\//i.test(c.url)
+    )
     .map((c) => ({
       name: slug(c.name || "connector"),
       url: c.url.trim(),

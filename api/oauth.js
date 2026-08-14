@@ -206,31 +206,61 @@ async function whoIs(provider, token) {
 async function store(userId, provider, token, account) {
   const client = db();
 
-  // The unique index on (user_id, provider) is what makes signing in again
-  // replace the connection rather than add a second one for the same account.
-  const { data: connector, error } = await client
-    .from("connectors")
-    .upsert(
-      {
-        user_id: userId,
-        provider: provider.id,
-        name: provider.name,
-        url: provider.mcp,
-        account,
-        enabled: true,
-        has_token: true
-      },
-      { onConflict: "user_id,provider" }
-    )
-    .select("id")
-    .single();
+  // What one sign-in produces. A service with a hosted MCP server becomes a
+  // single connector pointing at it; one without becomes an http connector per
+  // API it exposes, all sharing the token that was just issued. Google is the
+  // reason for the second shape — Gmail, Calendar, Drive and Sheets are four
+  // different hosts, and a connector is pinned to exactly one.
+  const rows = provider.mcp
+    ? [{ name: provider.name, url: provider.mcp, kind: "mcp", base_url: null, docs: null }]
+    : (provider.api || []).map((api) => ({
+        name: api.name,
+        // `url` is not null in the schema and means "where this points"; for an
+        // http connector that is the same address the model is pinned to.
+        url: api.base,
+        kind: "http",
+        base_url: api.base,
+        docs: api.docs || null
+      }));
 
-  if (error || !connector) return error || new Error("no connector row");
+  if (!rows.length) {
+    return new Error(`${provider.name} has nothing to connect to — no MCP server and no APIs.`);
+  }
 
-  return (
-    await client.from("connector_secrets").upsert(
+  let connector;
+  for (const row of rows) {
+    const { data, error } = await client
+      .from("connectors")
+      .upsert(
+        {
+          user_id: userId,
+          provider: provider.id,
+          name: row.name,
+          url: row.url,
+          kind: row.kind,
+          base_url: row.base_url,
+          docs: row.docs,
+          // Read-only. A token that can send mail as you is not something to
+          // hand a model by default because you clicked "Connect".
+          methods: row.kind === "http" ? ["GET", "HEAD"] : ["GET", "HEAD"],
+          auth_style: "bearer",
+          account,
+          enabled: true,
+          has_token: true
+        },
+        { onConflict: "user_id,provider,name" }
+      )
+      .select("id")
+      .single();
+
+    if (error || !data) return error || new Error("no connector row");
+    connector = data;
+
+    // The token is stored against every connector the sign-in produced, so
+    // each one can be revoked on its own.
+    const failed = await client.from("connector_secrets").upsert(
       {
-        connector_id: connector.id,
+        connector_id: data.id,
         user_id: userId,
         token: token.access,
         refresh_token: token.refresh,
@@ -238,8 +268,11 @@ async function store(userId, provider, token, account) {
         updated_at: new Date().toISOString()
       },
       { onConflict: "connector_id" }
-    )
-  ).error;
+    );
+    if (failed.error) return failed.error;
+  }
+
+  return connector ? null : new Error("nothing was connected");
 }
 
 /* ------------------------------ signed state ----------------------------- */

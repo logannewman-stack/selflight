@@ -164,3 +164,23 @@ test("every Assistant setting composes together", () => {
     assert.ok(prompt.includes(fragment), `missing: ${fragment}`);
   }
 });
+
+/* ---------------------- the two kinds of connector ------------------------ */
+
+test("an API connector is not sent as an MCP server", () => {
+  // Both kinds carry an https address. Telling them apart by URL alone would
+  // hand a REST API to Anthropic as an MCP server, and every turn using one
+  // would fail connecting to something that doesn't speak that protocol.
+  const servers = toMcpServers([
+    { name: "Linear", url: "https://mcp.linear.app/mcp", kind: "mcp", enabled: true },
+    { name: "Stripe", url: "https://api.stripe.com/v1", kind: "http", enabled: true, baseUrl: "https://api.stripe.com/v1" }
+  ]);
+
+  assert.deepEqual(servers.map((s) => s.name), ["linear"]);
+});
+
+test("a connector with no kind is still treated as MCP", () => {
+  // Every row written before 0008 has no kind, and they were all MCP servers.
+  const servers = toMcpServers([{ name: "Old", url: "https://mcp.example.com/mcp", enabled: true }]);
+  assert.equal(servers.length, 1);
+});
