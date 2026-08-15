@@ -73,7 +73,7 @@ async function converse(frames, settings = {}) {
   script = { frames };
   const { emit, seen } = recorder();
   const usage = await perplexity.converse({
-    system: "You are Selflight.",
+    system: "You are Polstar.",
     messages: [{ role: "user", content: "who won?" }],
     settings,
     emit
@@ -90,7 +90,7 @@ test("the request is addressed and authenticated the way Sonar expects", async (
   assert.equal(sent.auth, "Bearer pplx-test");
   assert.equal(sent.body.stream, true);
   assert.equal(sent.body.messages[0].role, "system");
-  assert.equal(sent.body.messages[0].content, "You are Selflight.");
+  assert.equal(sent.body.messages[0].content, "You are Polstar.");
   assert.deepEqual(sent.body.messages[1], { role: "user", content: "who won?" });
 });
 

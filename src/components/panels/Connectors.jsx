@@ -142,13 +142,13 @@ export default function Connectors({
 
       <Section
         title="Your accounts"
-        hint="Sign in once and Selflight can work with them in a conversation."
+        hint="Sign in once and Polstar can work with them in a conversation."
       >
         {!signedIn && (
           <div className="rounded-xl border border-dashed border-line px-3.5 py-5 text-center">
             <Link2 className="mx-auto mb-2 h-4 w-4 text-soft" strokeWidth={1.8} />
             <p className="text-sm leading-relaxed text-muted">
-              Sign in to Selflight first. A connected account belongs to a person, so there has to
+              Sign in to Polstar first. A connected account belongs to a person, so there has to
               be one to attach it to.
             </p>
           </div>
@@ -251,7 +251,7 @@ export default function Connectors({
               MCP is an Anthropic protocol and Perplexity's API has no equivalent, so anything you
               add here won't be reached. Set <code className="font-mono text-2xs">ANTHROPIC_API_KEY</code>{" "}
               instead of <code className="font-mono text-2xs">PERPLEXITY_API_KEY</code> to switch
-              Selflight over to Claude, which does support them.
+              Polstar over to Claude, which does support them.
             </p>
           </div>
         )}
@@ -465,7 +465,7 @@ export default function Connectors({
               to be public HTTPS endpoints — a server on your own machine won't be reachable.
             </p>
             <p className="text-sm leading-relaxed text-muted">
-              Connector support is a beta on the API. If your key doesn't have it yet, Selflight says
+              Connector support is a beta on the API. If your key doesn't have it yet, Polstar says
               so and answers without the connector instead of failing the message.
             </p>
           </>

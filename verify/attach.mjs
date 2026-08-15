@@ -186,7 +186,7 @@ const c = {
   red: (s) => `\x1b[31m${s}\x1b[0m`
 };
 
-console.log(`\n${c.bold("Selflight · attaching a file")}\n`);
+console.log(`\n${c.bold("Polstar · attaching a file")}\n`);
 for (const { label, pass, detail } of checks) {
   console.log(
     `  ${pass ? c.green("✓") : c.red("✗")} ${label}${detail && !pass ? c.dim(`  — ${detail}`) : ""}`

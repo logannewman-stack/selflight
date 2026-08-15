@@ -172,7 +172,7 @@ if (!(await page.locator("textarea").count())) {
   throw new Error(`No composer at ${URL} — is \`npm run dev\` running? Page says: ${body}`);
 }
 
-await page.getByPlaceholder(/Message Selflight/).fill("Measure this interface");
+await page.getByPlaceholder(/Message Polstar/).fill("Measure this interface");
 await page.getByLabel("Send message").click();
 await page.waitForTimeout(1500);
 

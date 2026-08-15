@@ -1,4 +1,4 @@
-# Selflight
+# Polstar
 
 A minimal AI workspace — chat with web access and connectors on the left, a
 canvas for what gets built on the right, and a code workspace when you want to
@@ -257,7 +257,7 @@ explicit, so it's honoured and the reply says what it cost: *"Background is tan.
 off High contrast."*
 
 **Existing installs move too.** A default only reaches browsers that have never stored
-anything, and everyone already using Selflight carries a settings blob naming the old
+anything, and everyone already using Polstar carries a settings blob naming the old
 palette — so shipping a new default changes nothing for exactly the people already here.
 `migrate()` in `src/lib/storage.js` moves them, but only if no colour control was ever
 touched: any palette, accent or main colour you chose is left alone. Signed in, that applies
@@ -318,7 +318,7 @@ Two things make it usable rather than fiddly:
 A package is plain JSON. Copy it, download it, or paste someone else's into **Import**;
 hex and `"r g b"` both work, as does a bare map of colours.
 
-**Naming.** Selflight is the product and the assistant; **Iris 6.0** is what it runs on. The
+**Naming.** Polstar is the product and the assistant; **Iris 6.0** is what it runs on. The
 same split as an app and its model, so the version can move without renaming the product
 every time it improves — and so nobody has to learn what `sonar-reasoning-pro` is to
 understand what they're talking to. Both live in `src/lib/brand.js`.
@@ -485,11 +485,11 @@ The feed is there for backfill, and for whatever the webhook missed:
 
 ```bash
 # oldest first — the first break is often the cause of the rest
-curl -H "X-Selflight-Secret: $FAILURE_FEED_SECRET" \
+curl -H "X-Polstar-Secret: $FAILURE_FEED_SECRET" \
      "https://selflight.vercel.app/api/failures?status=new&limit=50"
 
 # when the workflow is done with one
-curl -X PATCH -H "X-Selflight-Secret: $FAILURE_FEED_SECRET" \
+curl -X PATCH -H "X-Polstar-Secret: $FAILURE_FEED_SECRET" \
      -H "Content-Type: application/json" \
      -d '{"id":"…","status":"resolved","note":"opened PR #14"}' \
      https://selflight.vercel.app/api/failures
@@ -581,7 +581,7 @@ wrong.
 ## Connecting an account
 
 Settings → Connectors → **Connect**. Somebody signs into GitHub, Vercel, Linear
-or Notion, comes back, and Selflight holds a token for that account. They never
+or Notion, comes back, and Polstar holds a token for that account. They never
 have to find an API key.
 
 The one-time cost is yours, not theirs: every provider requires the *application*
@@ -641,7 +641,7 @@ consequences:
   API key. Those are different auth systems and the API key generally won't work.
 
 Connector support is a beta on the Anthropic API. If your key doesn't have it enabled,
-Selflight says so in the thread and answers without the connector instead of failing
+Polstar says so in the thread and answers without the connector instead of failing
 the message. The same fallback applies to web search.
 
 Signed out, a token you enter is stored in your browser's `localStorage` and sent
@@ -765,7 +765,7 @@ app's queries name actually exists. 38 assertions and a schema cross-check; deta
 
 All in `api/prompt.js`:
 
-- **`BASE_PROMPT`** — Selflight's personality and rules. The highest-leverage text in
+- **`BASE_PROMPT`** — Polstar's personality and rules. The highest-leverage text in
   the project; editing it changes the product more than any UI change will.
 - **`TIERS`** — which Sonar model each thinking depth uses, and how much of the web it
   reads. This is the main cost dial, because Perplexity charges a per-request fee that

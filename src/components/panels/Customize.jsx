@@ -25,7 +25,7 @@ export default function Customize({ settings, onSettings }) {
 
   return (
     <div className="thin-scrollbar h-full overflow-y-auto">
-      <Section title="How Selflight talks" hint="These fold into its instructions on every message.">
+      <Section title="How Polstar talks" hint="These fold into its instructions on every message.">
         <Choice label="Tone" options={TONES} value={settings.tone} onChange={set("tone")} />
         <Choice label="Answer length" options={LENGTHS} value={settings.length} onChange={set("length")} />
         <Choice

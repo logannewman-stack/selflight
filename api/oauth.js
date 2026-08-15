@@ -3,7 +3,7 @@
 //
 // Two halves of one flow, which is why they're one file:
 //
-//   POST /api/oauth?action=start      (with the Selflight session token)
+//   POST /api/oauth?action=start      (with the Polstar session token)
 //        → { url }, and a signed cookie holding who asked
 //   GET  /api/oauth?action=callback   (the provider sends the browser here)
 //        → exchanges the code, stores the token, redirects back to the app

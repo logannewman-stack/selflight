@@ -286,7 +286,7 @@ const c = {
   yellow: (s) => `\x1b[33m${s}\x1b[0m`
 };
 
-console.log(`\n${c.bold("Selflight · settings take effect and stick")}\n`);
+console.log(`\n${c.bold("Polstar · settings take effect and stick")}\n`);
 for (const { label, pass, detail } of checks) {
   console.log(`  ${pass ? c.green("✓") : c.red("✗")} ${label}${detail ? c.dim(`  — ${detail}`) : ""}`);
 }

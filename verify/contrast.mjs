@@ -124,7 +124,7 @@ const MEASURE = () => {
     code: of(document.querySelector(".stack-msg code")),
     sidebarChat: of(document.querySelector("nav[aria-label='Conversations'] button span:nth-child(2)")),
     sidebarHeading: of(byText("p", "TODAY") || byText("p", "Today")),
-    caveat: of(byText("span", "Selflight can be wrong")),
+    caveat: of(byText("span", "Polstar can be wrong")),
     composerPlaceholder: placeholder,
     modelPicker: of(byText("button", "Iris"))
   };
@@ -259,7 +259,7 @@ const c = {
   red: (s) => `\x1b[31m${s}\x1b[0m`
 };
 
-console.log(`\n${c.bold("Selflight · can you read it")}  ${c.dim("measured on rendered elements")}\n`);
+console.log(`\n${c.bold("Polstar · can you read it")}  ${c.dim("measured on rendered elements")}\n`);
 console.log(c.dim("  palette         worst element                  ratio"));
 for (const [theme, worst] of table) {
   console.log(`  ${theme.padEnd(16)}${worst.key.padEnd(30)} ${String(worst.value).padStart(6)}:1`);

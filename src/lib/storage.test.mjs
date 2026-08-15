@@ -248,7 +248,7 @@ test("the limit is honoured", () => {
 /* --------------------------- bringing settings forward -------------------- */
 //
 // Changing a default only reaches browsers that have never stored anything.
-// Everyone already using Selflight carries a blob naming the old palette, so a
+// Everyone already using Polstar carries a blob naming the old palette, so a
 // new default changes nothing for exactly the people who are already here —
 // which is how "the appearance change didn't do anything" happens.
 

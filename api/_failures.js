@@ -62,7 +62,7 @@ export function fingerprint({ kind, summary, detail = "", context = {} }) {
 
 /**
  * Files a failure. Returns the stored row, or null if there was nowhere to put
- * it — which is a normal state, not an error: Selflight runs with no database
+ * it — which is a normal state, not an error: Polstar runs with no database
  * at all, and a browser-only session has no failure log by design.
  *
  * @param {object} f
@@ -147,7 +147,7 @@ async function notify(row) {
       headers: {
         "Content-Type": "application/json",
         ...(process.env.FAILURE_FEED_SECRET
-          ? { "X-Selflight-Secret": process.env.FAILURE_FEED_SECRET }
+          ? { "X-Polstar-Secret": process.env.FAILURE_FEED_SECRET }
           : {})
       },
       body: JSON.stringify({ event: "failure", failure: row }),

@@ -18,7 +18,7 @@ export function Mark({ size = 24, className = "" }) {
       viewBox="0 0 32 32"
       className={className}
       role="img"
-      aria-label="Selflight"
+      aria-label="Polstar"
       fill="none"
       stroke="currentColor"
     >
@@ -39,7 +39,7 @@ export default function Logo({ size = 24, className = "", markClassName = "" }) 
         className="font-serif font-medium tracking-[-0.012em]"
         style={{ fontSize: `${Math.round(size * 0.86)}px` }}
       >
-        Selflight
+        Polstar
       </span>
     </span>
   );

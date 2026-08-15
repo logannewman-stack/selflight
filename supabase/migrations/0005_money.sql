@@ -78,6 +78,6 @@ begin
     raise exception 'public.user_keys was not created';
   end if;
 
-  raise notice 'Selflight is counting money.';
+  raise notice 'Polstar is counting money.';
 end;
 $$;

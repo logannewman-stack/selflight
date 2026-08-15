@@ -80,7 +80,7 @@ export default function Build() {
           <Wand2 className="mb-3 h-5 w-5 text-soft" strokeWidth={1.8} />
           <h2 className="text-lg font-semibold tracking-[-0.2px]">Build something</h2>
           <p className="mt-1.5 text-base leading-relaxed text-muted">
-            Describe a page and Selflight writes it, runs it here, and keeps editing it as you ask
+            Describe a page and Polstar writes it, runs it here, and keeps editing it as you ask
             for changes. Everything is one self-contained HTML file you can download.
           </p>
 

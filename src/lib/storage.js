@@ -248,7 +248,7 @@ const V1_COLOURS = {
  * Brings a stored settings blob up to date.
  *
  * Changing DEFAULT_SETTINGS only reaches browsers that have never stored
- * anything — everyone already using Selflight carries a blob that names the old
+ * anything — everyone already using Polstar carries a blob that names the old
  * palette, so shipping a new default changes nothing for exactly the people
  * already here. This moves them, but only if they never touched a colour
  * control: any palette, accent or main colour they chose is left alone.

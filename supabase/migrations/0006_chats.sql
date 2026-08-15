@@ -48,6 +48,6 @@ begin
   if missing is not null then
     raise exception 'Still missing: %', missing;
   end if;
-  raise notice 'Selflight chats can be pinned and searched.';
+  raise notice 'Polstar chats can be pinned and searched.';
 end;
 $$;

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { AlertCircle, Check, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { Mark } from "./Logo.jsx";
 
-// Shown instead of the app when Selflight can't work yet, and reachable from
+// Shown instead of the app when Polstar can't work yet, and reachable from
 // Settings once it can. Everything here is a thing you fix in a browser tab —
 // no terminal, because needing one to find out what's wrong is a bad answer for
 // most of the people who'd want to run this.
@@ -61,7 +61,7 @@ export default function Setup({ onDone, inset = !onDone }) {
       <p className="mt-1.5 text-base leading-relaxed text-muted">
         {inset
           ? "What this deployment can do, checked live."
-          : "Selflight needs one thing to work, and a second if you want people to sign in. This page checks both and tells you what's left."}
+          : "Polstar needs one thing to work, and a second if you want people to sign in. This page checks both and tells you what's left."}
       </p>
 
       <div className="mt-8 space-y-3">
@@ -103,7 +103,7 @@ export default function Setup({ onDone, inset = !onDone }) {
           ) : (
             <>
               <p>
-                Selflight has no key to write answers with. Getting one takes about two minutes and
+                Polstar has no key to write answers with. Getting one takes about two minutes and
                 needs a card — you pay per message, and a month of testing runs a few dollars.
               </p>
               <ol className="mt-3 space-y-2">
@@ -168,7 +168,7 @@ export default function Setup({ onDone, inset = !onDone }) {
             onClick={onDone}
             className="rounded-lg bg-ink px-4 py-2 text-base font-semibold text-page transition-opacity hover:opacity-90"
           >
-            Start using Selflight
+            Start using Polstar
           </button>
         )}
 
@@ -224,7 +224,7 @@ function Accounts({ accounts, cap }) {
     return (
       <>
         <p>
-          Selflight works fine without this — but everything stays in whichever browser you're using,
+          Polstar works fine without this — but everything stays in whichever browser you're using,
           there's no sign-in, and anyone who finds the address can spend your credit. Set this up
           before sharing the link with anyone.
         </p>
@@ -301,7 +301,7 @@ function Accounts({ accounts, cap }) {
     return (
       <Problem>
         <p>
-          Selflight found {accounts.tables.found} of {accounts.tables.total} tables it needs. The
+          Polstar found {accounts.tables.found} of {accounts.tables.total} tables it needs. The
           database setup didn't run, or ran on a different project.
         </p>
         <p className="mt-2">

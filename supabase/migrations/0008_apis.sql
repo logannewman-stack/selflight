@@ -92,6 +92,6 @@ begin
   if missing is not null then
     raise exception 'Still missing on connectors: %', missing;
   end if;
-  raise notice 'Selflight can connect to any API.';
+  raise notice 'Polstar can connect to any API.';
 end;
 $$;

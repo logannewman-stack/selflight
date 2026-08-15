@@ -1,6 +1,6 @@
 # Accounts, in about ten minutes
 
-Selflight works with no backend at all — everything sits in one browser. This
+Polstar works with no backend at all — everything sits in one browser. This
 folder is what turns it into something people sign into, with their chats and
 settings following them between devices.
 
@@ -89,7 +89,7 @@ usually means.
 Supabase → **SQL Editor** → run
 [`migrations/0002_repair.sql`](migrations/0002_repair.sql). It adds only what's
 missing, is safe to run twice, and leaves your existing chats alone. It prints
-`Selflight schema is up to date.` when it's done.
+`Polstar schema is up to date.` when it's done.
 
 `npm run doctor` names the missing columns, and so does the app's own setup
 screen.
@@ -120,7 +120,7 @@ SELFLIGHT_MONTHLY_TOKEN_CAP=2000000   # per user, per month. 0 removes it.
 ### What a message costs
 
 Perplexity bills two ways at once: per token, and a per-request fee when a reply
-actually searches the web. Selflight's thinking-depth setting moves both, because
+actually searches the web. Polstar's thinking-depth setting moves both, because
 on Sonar the depth of an answer *is* the cost of it.
 
 | Depth | Model | Tokens (in / out per M) | Search fee | Per message |

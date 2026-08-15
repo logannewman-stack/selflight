@@ -3,7 +3,7 @@
 // It costs more than Sonar and doesn't search by default, but it's the one that
 // supports MCP connectors and writes replies long enough for the Code workspace
 // to produce a real page. Set ANTHROPIC_API_KEY instead of PERPLEXITY_API_KEY
-// and Selflight uses this.
+// and Polstar uses this.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { effortFor, toMcpServers, toTools, toolsWithoutMcp } from "../prompt.js";

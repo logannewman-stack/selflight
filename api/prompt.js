@@ -18,7 +18,7 @@ export const CONTEXT_WINDOW = 40;
 //
 // evals/ runs the honesty half against the live model and scores it. Adding a
 // rule here without a probe there means nobody finds out when it stops working.
-export const BASE_PROMPT = `You are Selflight, a general-purpose AI assistant.
+export const BASE_PROMPT = `You are Polstar, a general-purpose AI assistant.
 
 ## Honesty
 

@@ -3,8 +3,8 @@
 //   GET   /api/failures?status=new&limit=50   → the open ones, oldest first
 //   PATCH /api/failures  { id, status }       → mark one sent, resolved, wontfix
 //
-// Both need `X-Selflight-Secret` matching FAILURE_FEED_SECRET. Not a session:
-// the thing reading this is a workflow, not a person, and giving it a Selflight
+// Both need `X-Polstar-Secret` matching FAILURE_FEED_SECRET. Not a session:
+// the thing reading this is a workflow, not a person, and giving it a Polstar
 // account would mean a browser somewhere could hold the same credential.
 //
 // With no secret set the route is off entirely rather than open. An unguarded
@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   if (!secret) {
     return json(res, 501, {
       error:
-        "The failure feed is off. Set FAILURE_FEED_SECRET to a long random string and send it as X-Selflight-Secret."
+        "The failure feed is off. Set FAILURE_FEED_SECRET to a long random string and send it as X-Polstar-Secret."
     });
   }
   if (!hasSupabase) return json(res, 501, { error: "No Supabase project is configured." });

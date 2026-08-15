@@ -124,7 +124,7 @@ const c = {
   red: (s) => `\x1b[31m${s}\x1b[0m`
 };
 
-console.log(`\n${c.bold("Selflight · honesty")}  ${c.dim(ask.name)}\n`);
+console.log(`\n${c.bold("Polstar · honesty")}  ${c.dim(ask.name)}\n`);
 
 const replies = {};
 // One at a time rather than in parallel: rate limits produce failures that look

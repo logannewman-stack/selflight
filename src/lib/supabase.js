@@ -1,7 +1,7 @@
 // The browser's Supabase client, or null.
 //
 // Null is a supported state, not a broken one: with no Supabase project
-// configured Selflight runs entirely in this browser, exactly as it did before
+// configured Polstar runs entirely in this browser, exactly as it did before
 // there were accounts. That keeps `npm run dev` a one-step affair and lets the
 // appearance suite run without any backend at all.
 

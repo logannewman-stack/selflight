@@ -292,7 +292,7 @@ export function describeError(err) {
   return null;
 }
 
-// Selflight's connector panel offers MCP servers, which Sonar has no equivalent
+// Polstar's connector panel offers MCP servers, which Sonar has no equivalent
 // for. Saying so once, in the thread, beats a feature that silently does
 // nothing.
 export function unsupported(connectors = []) {

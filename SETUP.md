@@ -1,4 +1,4 @@
-# Getting Selflight running, end to end
+# Getting Polstar running, end to end
 
 Eleven steps, in the order they have to happen. Each one ends with a way to know
 it worked, because a step that silently half-worked is what costs the afternoon.
@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-**Working when:** http://localhost:5173 shows the Selflight interface. Typing a
+**Working when:** http://localhost:5173 shows the Polstar interface. Typing a
 message gets an error about a missing API key — that's step 2, and it means the
 front end and the server are both alive.
 
@@ -51,7 +51,7 @@ Restart `npm run dev` (Vite reads `.env.local` at startup) and send a message.
 **Working when:** you get a streamed reply with **Sources** listed underneath it.
 Sources are the proof it really searched rather than answering from memory.
 
-> Everything from here is optional. Selflight is fully usable at this point — it
+> Everything from here is optional. Polstar is fully usable at this point — it
 > just stores everything in your browser and has no sign-in. Steps 3–8 add
 > accounts, which is what makes it shareable.
 
@@ -63,7 +63,7 @@ Sources are the proof it really searched rather than answering from memory.
 
 - **Name:** selflight
 - **Database password:** generate one and save it somewhere. You won't need it for
-  Selflight, but you'll want it later and it isn't shown again.
+  Polstar, but you'll want it later and it isn't shown again.
 - **Region:** nearest you.
 
 Provisioning takes a couple of minutes.

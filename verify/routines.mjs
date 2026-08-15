@@ -273,7 +273,7 @@ const c = {
   yellow: (s) => `\x1b[33m${s}\x1b[0m`
 };
 
-console.log(`\n${c.bold("Selflight · routines")}\n`);
+console.log(`\n${c.bold("Polstar · routines")}\n`);
 for (const { label, pass, detail } of checks) {
   console.log(`  ${pass ? c.green("✓") : c.red("✗")} ${label}${detail && !pass ? c.dim(`  — ${detail}`) : ""}`);
 }

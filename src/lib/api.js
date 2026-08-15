@@ -26,7 +26,7 @@ async function post(payload, signal) {
 
   if (!res.ok || !res.body) {
     const detail = await res.json().catch(() => null);
-    throw new Error(detail?.error || "Couldn't reach Selflight. Try again.");
+    throw new Error(detail?.error || "Couldn't reach Polstar. Try again.");
   }
   return res;
 }
@@ -92,7 +92,7 @@ async function routineFetch(path, options = {}) {
     if (!res.ok) return { error: body?.error || `That didn't work (${res.status}).` };
     return body || {};
   } catch (err) {
-    return { error: `Couldn't reach Selflight: ${err.message}` };
+    return { error: `Couldn't reach Polstar: ${err.message}` };
   }
 }
 

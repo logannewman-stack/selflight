@@ -1,4 +1,4 @@
--- Which Selflight migrations does this database already have?
+-- Which Polstar migrations does this database already have?
 --
 -- Read-only: it looks at information_schema and nothing else. Safe to run on a
 -- live project, and safe to run at any time.

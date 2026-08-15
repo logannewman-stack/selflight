@@ -167,7 +167,7 @@ function Detail({ project, chats, onUpdate, onDelete, onNewChat, onBack }) {
           onChange={(e) => setInstructions(e.target.value.slice(0, MAX_INSTRUCTIONS))}
           rows={10}
           placeholder={
-            "What should Selflight know in every chat here?\n\n" +
+            "What should Polstar know in every chat here?\n\n" +
             "Who you are, what you're working on, how you want answers. " +
             "It goes into the system prompt for this project's conversations, " +
             "and takes precedence over your account-wide instructions."

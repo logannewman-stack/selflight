@@ -148,7 +148,7 @@ check("and reverses the change it made", (await background()) !== tinted, await 
 
 /* --------------------------------- output -------------------------------- */
 
-console.log("\nSelflight · commands from the composer\n");
+console.log("\nPolstar · commands from the composer\n");
 for (const { label, passed, detail } of report) {
   console.log(`  ${passed ? "\x1b[32m✓\x1b[0m" : "\x1b[31m✗\x1b[0m"} ${label}${detail ? `\x1b[2m  ${detail}\x1b[0m` : ""}`);
 }

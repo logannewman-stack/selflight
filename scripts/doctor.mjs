@@ -95,7 +95,7 @@ async function checkPerplexity() {
     if (claude) {
       warn(
         "PERPLEXITY_API_KEY is not set, but ANTHROPIC_API_KEY is",
-        "Selflight will run on Claude. That works — this check just can't verify it."
+        "Polstar will run on Claude. That works — this check just can't verify it."
       );
       return;
     }
@@ -199,7 +199,7 @@ async function checkSupabase() {
   const serviceKey = env("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!url && !anonKey && !serviceKey) {
-    skip("No Supabase configured — Selflight runs signed-out, storing everything in the browser.");
+    skip("No Supabase configured — Polstar runs signed-out, storing everything in the browser.");
     skip("That's a valid setup. Add the three variables when you want accounts.");
     return;
   }
@@ -249,7 +249,7 @@ async function checkSupabase() {
 
   if (missing.length === TABLES.length) {
     return bad(
-      "None of Selflight's tables exist in this project",
+      "None of Polstar's tables exist in this project",
       "Supabase → SQL Editor → New query → paste supabase/migrations/0001_init.sql → Run."
     );
   }
@@ -469,7 +469,7 @@ async function checkHttps(base) {
 
 /* --------------------------------- run it -------------------------------- */
 
-console.log(c.bold("\nSelflight · checking the stack"));
+console.log(c.bold("\nPolstar · checking the stack"));
 
 await checkPerplexity();
 checkDictation();

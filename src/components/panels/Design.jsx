@@ -421,7 +421,7 @@ export default function Design({
         />
         <Toggle
           label="Open artifacts automatically"
-          hint="Show the canvas as soon as Selflight writes something."
+          hint="Show the canvas as soon as Polstar writes something."
           checked={settings.autoArtifacts}
           onChange={set("autoArtifacts")}
         />

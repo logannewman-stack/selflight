@@ -160,6 +160,6 @@ begin
   if missing is not null then
     raise exception 'Still missing: %', missing;
   end if;
-  raise notice 'Selflight has projects and routines.';
+  raise notice 'Polstar has projects and routines.';
 end;
 $$;

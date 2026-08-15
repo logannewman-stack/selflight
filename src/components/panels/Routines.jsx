@@ -56,7 +56,7 @@ export default function Routines({
           put the answer. That means an account.
         </p>
         <p className="text-sm leading-relaxed text-soft">
-          Sign in and this page fills up. Nothing else about Selflight needs one.
+          Sign in and this page fills up. Nothing else about Polstar needs one.
         </p>
       </div>
     );

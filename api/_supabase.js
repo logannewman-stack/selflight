@@ -10,7 +10,7 @@ import { costOf, planFor } from "./_pricing.js";
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// With no project configured Selflight runs signed-out and browser-only, which
+// With no project configured Polstar runs signed-out and browser-only, which
 // is how `npm run dev` works before you've set any of this up.
 export const hasSupabase = Boolean(url && serviceKey);
 

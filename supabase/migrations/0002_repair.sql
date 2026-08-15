@@ -1,6 +1,6 @@
 -- Brings an existing database up to date.
 --
--- Run this in the Supabase SQL editor if Selflight was set up before these
+-- Run this in the Supabase SQL editor if Polstar was set up before these
 -- columns existed. It is safe to run on any version, and safe to run twice:
 -- every statement checks first.
 --
@@ -37,7 +37,7 @@ begin
   );
 
   if missing is null then
-    raise notice 'Selflight schema is up to date.';
+    raise notice 'Polstar schema is up to date.';
   else
     raise exception 'Still missing on public.messages: %', missing;
   end if;

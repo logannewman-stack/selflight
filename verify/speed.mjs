@@ -158,7 +158,7 @@ const c = {
   red: (s) => `\x1b[31m${s}\x1b[0m`
 };
 
-console.log(`\n${c.bold("Selflight · opening a chat")}  ${c.dim(`${LATENCY}ms store, 3 chats`)}\n`);
+console.log(`\n${c.bold("Polstar · opening a chat")}  ${c.dim(`${LATENCY}ms store, 3 chats`)}\n`);
 
 const check = (label, ms, budget) => {
   const pass = ms <= budget;

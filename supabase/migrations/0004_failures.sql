@@ -69,6 +69,6 @@ begin
   ) then
     raise exception 'public.failures was not created';
   end if;
-  raise notice 'Selflight failure log is ready.';
+  raise notice 'Polstar failure log is ready.';
 end;
 $$;

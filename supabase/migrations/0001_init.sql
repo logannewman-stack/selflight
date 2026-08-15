@@ -1,4 +1,4 @@
--- Selflight schema.
+-- Polstar schema.
 --
 -- Run this in the Supabase SQL editor, or with the Supabase CLI:
 --   supabase db push

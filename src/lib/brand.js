@@ -1,13 +1,13 @@
 // What the product calls itself, in one place.
 //
 // The mode name is deliberately separate from the model underneath: the app is
-// Selflight whichever provider is answering, and a person shouldn't have to
+// Polstar whichever provider is answering, and a person shouldn't have to
 // learn what "sonar-reasoning-pro" is to understand what they're talking to.
 
-// Selflight is the product and the assistant. Iris is what it runs on — the
+// Polstar is the product and the assistant. Iris is what it runs on — the
 // same split as an app and its model, so the version can move without the
 // product being renamed every time it gets better.
-export const NAME = "Selflight";
+export const NAME = "Polstar";
 export const MODE = "Iris 6.0";
 
 // Effort, in the app's own terms rather than the provider's. The costs are

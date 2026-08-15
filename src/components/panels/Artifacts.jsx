@@ -25,7 +25,7 @@ export default function Artifacts({ artifacts }) {
   if (!artifacts.length) {
     return (
       <Empty icon={Shapes} title="Nothing built yet">
-        Code and pages Selflight writes during a chat collect here, where you can preview, edit,
+        Code and pages Polstar writes during a chat collect here, where you can preview, edit,
         and download them.
       </Empty>
     );

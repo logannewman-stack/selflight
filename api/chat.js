@@ -226,7 +226,7 @@ async function handleTitle(res, messages, user) {
 
   const opening = messages
     .slice(0, 2)
-    .map((m) => `${m.role === "user" ? "Person" : "Selflight"}: ${flatten(m.content)}`)
+    .map((m) => `${m.role === "user" ? "Person" : "Polstar"}: ${flatten(m.content)}`)
     .join("\n\n");
 
   try {

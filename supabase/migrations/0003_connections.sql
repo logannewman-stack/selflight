@@ -58,7 +58,7 @@ begin
   );
 
   if missing is null then
-    raise notice 'Selflight connections are ready.';
+    raise notice 'Polstar connections are ready.';
   else
     raise exception 'Still missing: %', missing;
   end if;

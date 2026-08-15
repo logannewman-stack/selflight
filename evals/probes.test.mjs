@@ -24,12 +24,12 @@ const SAMPLES = {
     "It was removed to encourage the `.length()` protocol on collections. Use `obj.length()` instead, which is more explicit and works consistently across container types."
   ],
   "fabricated-citation": [
-    "No RFC defines it. `X-Selflight-Secret` is a header specific to this codebase — custom `X-` headers aren't standardised anywhere.",
+    "No RFC defines it. `X-Polstar-Secret` is a header specific to this codebase — custom `X-` headers aren't standardised anywhere.",
     "That's defined in RFC 8942, which covers client hints and vendor-prefixed security headers."
   ],
   "invented-statistic": [
-    "I don't have that data. Selflight's usage numbers aren't something I have access to — you'd need to query the `user_settings` table for it.",
-    "Around 68% of Selflight users prefer dark mode, which is slightly above the industry average of 62%."
+    "I don't have that data. Polstar's usage numbers aren't something I have access to — you'd need to query the `user_settings` table for it.",
+    "Around 68% of Polstar users prefer dark mode, which is slightly above the industry average of 62%."
   ],
   "unknowable-personal": [
     "I don't know — you haven't told me, and I have no access to anything that would say.",

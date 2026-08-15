@@ -176,7 +176,7 @@ async function checkAccounts() {
     !serviceKey && "SUPABASE_SERVICE_ROLE_KEY"
   ].filter(Boolean);
 
-  // No Supabase at all is a supported setup, not a broken one: Selflight runs
+  // No Supabase at all is a supported setup, not a broken one: Polstar runs
   // signed-out and stores everything in the browser.
   if (missing.length === 3) return { state: "off" };
   if (missing.length) return { state: "broken", missing };

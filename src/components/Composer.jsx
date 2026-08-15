@@ -320,8 +320,8 @@ export default function Composer({
               dragging
                 ? "Drop the file here"
                 : settings.sendKey === "mod"
-                  ? "Message Selflight… (⌘↵ to send)"
-                  : "Message Selflight…"
+                  ? "Message Polstar… (⌘↵ to send)"
+                  : "Message Polstar…"
             }
             className="no-scrollbar max-h-[200px] flex-1 resize-none bg-transparent py-1 leading-relaxed outline-none placeholder:text-soft"
             style={{ fontSize: "var(--msg-size)" }}
@@ -466,7 +466,7 @@ export default function Composer({
             {/* The caveat still belongs here, but it's the least important
                 thing on the row now, so it yields first when space runs out. */}
             <span className="hidden min-w-0 flex-1 truncate px-2 text-center lg:block">
-              Selflight can be wrong. Check anything that matters.
+              Polstar can be wrong. Check anything that matters.
             </span>
             <span className="flex-1 lg:hidden" />
 

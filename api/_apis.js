@@ -1,7 +1,7 @@
 // Letting the model call an API the person connected — safely.
 //
-// This is the piece that turns "Selflight can talk to four services we wrote
-// code for" into "Selflight can talk to anything you have a key for". You give
+// This is the piece that turns "Polstar can talk to four services we wrote
+// code for" into "Polstar can talk to anything you have a key for". You give
 // it a base URL and a credential; it becomes a tool the model can call.
 //
 // That is also, obviously, the most dangerous thing in this codebase. A model
