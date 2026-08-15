@@ -36,5 +36,10 @@ from (
   union all
   select '0007_projects_routines.sql',
          to_regclass('public.routines') is not null
+  union all
+  -- 0008 adds columns rather than a table, so this checks a column.
+  select '0008_apis.sql',
+         exists (select 1 from information_schema.columns
+                 where table_name='connectors' and column_name='base_url')
 ) m
 order by m.file;
