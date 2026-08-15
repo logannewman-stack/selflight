@@ -9,7 +9,7 @@ import { test } from "node:test";
 
 process.env.PERPLEXITY_API_KEY = "pplx-test";
 
-const { _internals, tierFor } = await import("./providers/perplexity.js");
+const { _internals, tierFor, unsupported } = await import("./providers/perplexity.js");
 const { thinkFilter, toSources } = _internals;
 
 // Feed a reply through the filter one chunk at a time, the way it arrives.
@@ -127,4 +127,37 @@ test("anything that isn't a link is dropped", () => {
 test("a reply with no sources produces none", () => {
   assert.deepEqual(toSources({}), []);
   assert.deepEqual(toSources({ search_results: null }), []);
+});
+
+/* ------------------- saying what this provider cannot do ------------------ */
+
+test("a connector on Perplexity is reported, not silently ignored", () => {
+  // Sonar has no tool use of any kind. The dangerous version of this is the
+  // one where a connector looks attached and is simply never called.
+  const said = unsupported([{ name: "Stripe", enabled: true, kind: "http" }]);
+  assert.ok(said, "an unusable connector has to be mentioned");
+  assert.match(said, /can't call tools/i);
+  // And says what to do about it, rather than only that it didn't work.
+  assert.match(said, /ANTHROPIC_API_KEY/);
+});
+
+test("it doesn't name only one kind of connector", () => {
+  // It used to say "MCP connectors", which since 0008 reads as though a plain
+  // API connector would work. Neither does.
+  const said = unsupported([{ name: "Stripe", enabled: true, kind: "http" }]);
+  assert.ok(!/^MCP connectors/.test(said), said);
+});
+
+test("nothing is said when there is nothing to say", () => {
+  assert.equal(unsupported([]), null);
+  assert.equal(unsupported([{ name: "Off", enabled: false }]), null);
+});
+
+test("the count matches how many are actually on", () => {
+  const said = unsupported([
+    { name: "A", enabled: true },
+    { name: "B", enabled: true },
+    { name: "C", enabled: false }
+  ]);
+  assert.match(said, /your 2 connectors/);
 });

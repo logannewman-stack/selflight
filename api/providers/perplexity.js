@@ -298,9 +298,12 @@ export function describeError(err) {
 export function unsupported(connectors = []) {
   const live = connectors.filter((c) => c?.enabled !== false).length;
   if (!live) return null;
-  return `MCP connectors don't work on Perplexity's API — it has no equivalent — so this reply was written without ${
+  // Says "connectors", not "MCP connectors": since 0008 a connector can also be
+  // a plain API, and Sonar can call neither. A notice that names only half the
+  // problem reads as "the other kind must work", which it doesn't.
+  return `Connectors don't work on Perplexity — Sonar can't call tools of any kind — so this reply was written without ${
     live === 1 ? "your connector" : `your ${live} connectors`
-  }.`;
+  }. Set ANTHROPIC_API_KEY and turns that need a connector will use Claude instead.`;
 }
 
 // Exported for the tests: the <think> stripping and the source list are the two
