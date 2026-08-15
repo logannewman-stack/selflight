@@ -15,7 +15,7 @@ import Logo from "./Logo.jsx";
 
 const LINES = [
   "It says when it doesn't know.",
-  "It shows what it read.",
+  "It shows what it thinks.",
   "It tells you when it was wrong."
 ];
 
