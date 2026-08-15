@@ -64,6 +64,15 @@
   body,
   #root {
     height: 100%;
+    /* `dvh` follows the browser chrome as it slides away on a phone; `100%`
+       and `vh` both measure the tallest the viewport could be, which leaves
+       the bottom of the app under the address bar until you scroll. */
+    height: 100dvh;
+  }
+
+  /* Nothing interactive should sit under the home indicator or a notch. */
+  #root {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   body {
@@ -71,10 +80,25 @@
     font-optical-sizing: auto;
   }
 
-  /* Stops iOS zooming when the composer takes focus. */
-  textarea,
-  input {
-    font-size: 16px;
+  /* Stops iOS zooming the whole page when a text box takes focus.
+   *
+   * This rule used to live here without the media query or the `!important`,
+   * and it never once applied: it sits in the base layer, and every input in
+   * the app carries `text-base` — 13.5px on this scale — from the utilities
+   * layer, which comes later and wins. The composer was worse still, setting
+   * its size inline from `--msg-size`. So the comment said "stops iOS zooming"
+   * while iOS zoomed on every field including the one people use most.
+   *
+   * `!important` is the only thing that beats an inline style, and the coarse
+   * pointer query is what keeps it honest: it applies exactly where the zoom
+   * happens — a phone or tablet — and leaves the typography on a laptop alone.
+   * 16px is not a preference here, it is the threshold Safari checks. */
+  @media (pointer: coarse) {
+    textarea,
+    select,
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) {
+      font-size: 16px !important;
+    }
   }
 
   /* Keyboard users get a visible ring; pointer users don't. */
@@ -96,6 +120,57 @@
 }
 
 @layer utilities {
+  /* Big enough for a finger, on the devices that have fingers.
+   *
+   * 44px is Apple's floor and roughly where people stop missing. A phone probe
+   * of the main screen found the send button, the attachment button, the
+   * microphone and the menu all at 30–32px, and the two composer pills at
+   * 27px tall — every control somebody actually uses on a phone was under it.
+   *
+   * Both of these are gated on a coarse pointer so a mouse keeps the compact
+   * layout, where 32px is comfortable and 44px looks padded.
+   *
+   * `.tap` grows the control itself, for the icon buttons and nav rows where a
+   * bigger control is simply better. It deliberately sets nothing but the two
+   * minimums: an earlier version also set `display: inline-flex`, which put it
+   * in a fight with Tailwind's own `flex` and `w-full` that it would sometimes
+   * win. Centring is the caller's job, in the markup, where it's visible. */
+  @media (pointer: coarse) {
+    .tap {
+      min-width: 44px;
+      min-height: 44px;
+    }
+  }
+
+  /* For a control whose real target is the box around it — the message box,
+     where the textarea is 34px inside a padded container that focuses it on
+     tap. Marks the container as the thing a finger aims at, so the size that
+     matters is measured on the right element. */
+  @media (pointer: coarse) {
+    .tap-wraps {
+      min-height: 44px;
+    }
+  }
+
+  /* `.tap-area` grows only the target, leaving the control the size it looks.
+     For the small pills, where a 44px-tall pill around 11px of text would
+     read as a mistake. Invisible, and it costs no layout. */
+  @media (pointer: coarse) {
+    .tap-area {
+      position: relative;
+    }
+
+    .tap-area::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+    }
+  }
+
   .no-scrollbar {
     scrollbar-width: none;
   }

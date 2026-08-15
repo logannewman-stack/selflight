@@ -150,7 +150,7 @@ export default function Sidebar({
       <div className="px-3 pt-3">
         <button
           onClick={onNew}
-          className="flex w-full items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-base font-medium transition-colors hover:border-soft"
+          className="tap flex w-full items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-base font-medium transition-colors hover:border-soft"
         >
           <Plus className="h-4 w-4" strokeWidth={2.4} />
           New chat
@@ -171,7 +171,7 @@ export default function Sidebar({
             // cause and no obvious way back.
             onKeyDown={(e) => e.key === "Escape" && (needle ? setQuery("") : closeSearch())}
             placeholder="Search chats and messages"
-            className="w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-base outline-none placeholder:text-soft focus:border-soft"
+            className="tap w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-base outline-none placeholder:text-soft focus:border-soft"
           />
         </div>
       )}
@@ -368,7 +368,7 @@ export default function Sidebar({
         <button
           onClick={() => onSection("settings")}
           aria-label="Settings"
-          className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+          className={`tap flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
             section === "settings" || section === "palette"
               ? "bg-surface"
               : "hover:bg-surface/60"
@@ -400,7 +400,7 @@ function Segment({ icon: Icon, label, active, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-[10px] py-1.5 text-base font-medium transition-colors ${
+      className={`tap flex flex-1 items-center justify-center gap-1.5 rounded-[10px] py-1.5 text-base font-medium transition-colors ${
         active ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink"
       }`}
     >
@@ -414,7 +414,7 @@ function NavItem({ icon: Icon, label, onClick, active, badge }) {
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-base transition-colors ${
+      className={`tap flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-base transition-colors ${
         active ? "bg-surface font-medium text-ink" : "text-muted hover:bg-surface/60 hover:text-ink"
       }`}
     >
@@ -438,7 +438,7 @@ function IconButton({ children, onClick, label }) {
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="rounded-md p-1.5 text-muted transition-colors hover:bg-surface hover:text-ink"
+      className="tap flex items-center justify-center rounded-md p-1.5 text-muted transition-colors hover:bg-surface hover:text-ink"
     >
       {children}
     </button>

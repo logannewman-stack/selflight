@@ -5,6 +5,7 @@ import Message from "./components/Message.jsx";
 import Composer from "./components/Composer.jsx";
 import RightPanel from "./components/RightPanel.jsx";
 import SignIn from "./components/SignIn.jsx";
+import Landing from "./components/Landing.jsx";
 import Setup from "./components/Setup.jsx";
 import Logo from "./components/Logo.jsx";
 import Build from "./components/panels/Build.jsx";
@@ -29,6 +30,9 @@ const SUGGESTIONS = [
 ];
 
 const ACTIVITY_ICONS = { search: Search, fetch: Globe, connector: Link2, tool: Sparkles };
+
+// Whether this browser has already been past the front door.
+const LANDING_KEY = "selflight.landing.v1";
 
 export default function App() {
   const [chats, setChats] = useState([]);
@@ -103,6 +107,15 @@ export default function App() {
   // to re-read something mid-reply doesn't yank them back down.
   const [pinned, setPinned] = useState(true);
   const [focusSignal, setFocusSignal] = useState(0);
+  // Read once at startup so the first paint is already the right screen — a
+  // landing page that flashes before the sign-in form is worse than either.
+  const [landingSeen, setLandingSeen] = useState(() => {
+    try {
+      return localStorage.getItem(LANDING_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [prefersDark, setPrefersDark] = useState(
     () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false
   );
@@ -910,7 +923,26 @@ export default function App() {
   // is a poor way to learn that. Say what's missing and how to fix it instead.
   if (can.configured === false && !setupDone) return <Setup onDone={() => setSetupDone(true)} />;
 
-  if (hasSupabase && !user) return <SignIn />;
+  if (hasSupabase && !user) {
+    // The front door, once. Somebody who has signed in before and been signed
+    // out again wants the form, not the pitch — so the landing page is skipped
+    // for any browser that has seen it.
+    if (!landingSeen) {
+      return (
+        <Landing
+          onContinue={() => {
+            setLandingSeen(true);
+            try {
+              localStorage.setItem(LANDING_KEY, "1");
+            } catch {
+              // Private mode. Showing it twice is a small cost.
+            }
+          }}
+        />
+      );
+    }
+    return <SignIn onBack={() => setLandingSeen(false)} />;
+  }
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -966,7 +998,7 @@ export default function App() {
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Show menu"
-            className="rounded-md p-1.5 text-muted transition-colors hover:bg-panel hover:text-ink md:hidden"
+            className="tap flex items-center justify-center rounded-md p-1.5 text-muted transition-colors hover:bg-panel hover:text-ink md:hidden"
           >
             <PanelLeft className="h-[18px] w-[18px]" strokeWidth={2} />
           </button>
@@ -992,7 +1024,7 @@ export default function App() {
           <button
             onClick={newChat}
             aria-label="New chat"
-            className="rounded-md p-1.5 text-muted transition-colors hover:bg-panel hover:text-ink md:hidden"
+            className="tap flex items-center justify-center rounded-md p-1.5 text-muted transition-colors hover:bg-panel hover:text-ink md:hidden"
           >
             <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} />
           </button>
@@ -1028,7 +1060,7 @@ export default function App() {
                         <button
                           key={s}
                           onClick={() => send(s)}
-                          className="rounded-full border border-line bg-surface px-3.5 py-2 text-base text-muted transition-colors hover:border-soft hover:text-ink"
+                          className="tap rounded-full border border-line bg-surface px-3.5 py-2 text-base text-muted transition-colors hover:border-soft hover:text-ink"
                         >
                           {s}
                         </button>

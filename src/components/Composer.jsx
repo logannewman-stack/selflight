@@ -304,8 +304,14 @@ export default function Composer({
           </div>
         )}
 
+        {/* The box, not just the text in it. A one-line textarea is 34px tall
+            inside a taller rounded box, so tapping the padding — which looks
+            exactly like tapping the box — used to do nothing at all. The
+            identity check means this only fires on the container's own
+            padding; a tap that lands on a button is that button's. */}
         <div
-          className={`flex items-end gap-2 rounded-2xl border bg-surface px-3.5 py-2.5 shadow-[0_1px_3px_rgb(0_0_0/0.04)] focus-within:border-soft ${
+          onClick={(e) => e.target === e.currentTarget && ref?.current?.focus()}
+          className={`tap-wraps flex items-end gap-2 rounded-2xl border bg-surface px-3.5 py-2.5 shadow-[0_1px_3px_rgb(0_0_0/0.04)] focus-within:border-soft ${
             dragging ? "border-accent bg-accent/5" : "border-line"
           }`}
         >
@@ -345,7 +351,7 @@ export default function Composer({
                 disabled={full || reading}
                 aria-label="Attach a file"
                 title={full ? `${MAX_FILES} files is the limit` : "Attach a file"}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-panel hover:text-ink disabled:opacity-40"
+                className="tap flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-panel hover:text-ink disabled:opacity-40"
               >
                 {reading ? (
                   <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
@@ -371,7 +377,7 @@ export default function Composer({
               aria-label={listening ? "Stop dictating" : "Dictate a message"}
               aria-pressed={listening}
               title={listening ? "Stop dictating" : "Dictate a message"}
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+              className={`tap flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
                 listening ? "bg-accent text-page" : "text-muted hover:bg-panel hover:text-ink"
               } ${blockedReason ? "opacity-40" : ""} disabled:opacity-40`}
             >
@@ -387,7 +393,7 @@ export default function Composer({
             <button
               onClick={onStop}
               aria-label="Stop generating"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bubble transition-transform active:scale-90"
+              className="tap flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bubble transition-transform active:scale-90"
             >
               <Square className="h-3 w-3 fill-bubbleInk text-bubbleInk" />
             </button>
@@ -398,7 +404,7 @@ export default function Composer({
               // typed is a perfectly ordinary thing to send.
               disabled={!value.trim() && attachments.length === 0}
               aria-label="Send message"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bubble transition-transform active:scale-90 disabled:opacity-25"
+              className="tap flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bubble transition-transform active:scale-90 disabled:opacity-25"
             >
               <ArrowUp className="h-4 w-4 text-bubbleInk" strokeWidth={2.5} />
             </button>
@@ -446,7 +452,7 @@ export default function Composer({
             <button
               onClick={() => onSettings({ webSearch: !settings.webSearch })}
               title={settings.webSearch ? "Turn web search off" : "Turn web search on"}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 transition-colors ${
+              className={`tap-area flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 transition-colors ${
                 settings.webSearch
                   ? "border-line text-muted hover:border-soft hover:text-ink"
                   : "border-transparent text-soft hover:text-muted"
@@ -506,7 +512,7 @@ function EffortPicker({ settings, onSettings }) {
         aria-expanded={open}
         aria-haspopup="menu"
         title="Effort"
-        className="flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 font-medium text-muted transition-colors hover:border-soft hover:text-ink"
+        className="tap-area flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 font-medium text-muted transition-colors hover:border-soft hover:text-ink"
       >
         <span>{MODE}</span>
         <span className="text-soft">{current.name}</span>

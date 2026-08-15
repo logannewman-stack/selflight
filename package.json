@@ -19,7 +19,9 @@
     "verify:contrast": "node verify/contrast.mjs",
     "verify:settings": "node verify/settings.mjs",
     "verify:projects": "node verify/projects.mjs",
-    "verify:routines": "node verify/routines.mjs"
+    "verify:routines": "node verify/routines.mjs",
+    "verify:welcome": "node verify/welcome.mjs",
+    "verify:phone": "node verify/phone.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
