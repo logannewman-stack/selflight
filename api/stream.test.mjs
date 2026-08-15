@@ -267,7 +267,9 @@ test("connectors are admitted to be unavailable rather than silently ignored", a
   assert.equal(perplexity.unsupported([{ name: "linear", enabled: false }]), null);
 
   const one = perplexity.unsupported([{ name: "linear", enabled: true }]);
-  assert.match(one, /MCP connectors don't work on Perplexity/);
+  // Not "MCP connectors" — a connector can also be a plain API since 0008, and
+  // Sonar can call neither. Naming one kind implies the other works.
+  assert.match(one, /Connectors don't work on Perplexity/);
   assert.match(one, /your connector\b/);
 
   assert.match(
