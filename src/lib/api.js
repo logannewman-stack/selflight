@@ -161,6 +161,51 @@ export async function connectService(provider) {
   }
 }
 
+/* -------------------------------- billing -------------------------------- */
+
+/**
+ * The plan, what's left of the month, and what else is for sale.
+ *
+ * Answers signed out too, with `plan: null` — that's what lets the prices
+ * render before somebody has an account.
+ */
+export async function billing() {
+  try {
+    const res = await fetch("/api/billing", { headers: await headers() });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sends somebody to Stripe — to buy `plan`, or with no argument to the portal
+ * where an existing subscription is changed or cancelled.
+ *
+ * Returns a message on failure, or never returns because the browser has
+ * navigated away. Note what isn't sent: no price, no amount, no currency. The
+ * server looks all of that up, so a request that says "Max for nothing" gets
+ * Max's real price.
+ */
+export async function startCheckout(plan = null) {
+  try {
+    const res = await fetch("/api/checkout", {
+      method: "POST",
+      headers: await headers(),
+      body: JSON.stringify(plan ? { plan } : { action: "portal" })
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.url) return data?.error || "Couldn't start checkout.";
+
+    window.location.assign(data.url);
+    return null;
+  } catch {
+    return "Couldn't reach the server to start checkout.";
+  }
+}
+
 // Short and fixed rather than a free-text box: "what went wrong?" gets filled
 // in by roughly nobody, and four buttons get pressed. Mirrors REASONS in
 // api/feedback.js, which is what actually validates them.

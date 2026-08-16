@@ -13,11 +13,26 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text,
   created_at timestamptz not null default now(),
-  -- 'free', 'pro', 'byok', 'team'. Null reads as free, so an account created
-  -- before plans existed never gets an unlimited allowance by accident.
+  -- 'free', 'starter', 'plus', 'pro', 'max', 'byok'. Null reads as free, so an
+  -- account created before plans existed never gets an unlimited allowance by
+  -- accident, and neither does one whose plan id we no longer recognise.
   plan text,
-  plan_since timestamptz
+  plan_since timestamptz,
+  -- Who this account is in Stripe. The webhook arrives knowing only a customer,
+  -- so this is the lookup that turns a payment into an entitlement.
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  -- When the paid period ends. A cancellation sets this rather than dropping
+  -- the plan immediately — they've paid for the rest of the month.
+  plan_until timestamptz,
+  -- The last Stripe event applied here, so a retried or out-of-order delivery
+  -- is a no-op rather than a second write.
+  stripe_event_id text
 );
+
+create unique index if not exists profiles_stripe_customer_idx
+  on public.profiles (stripe_customer_id)
+  where stripe_customer_id is not null;
 
 /* ------------------------------- settings ------------------------------- */
 

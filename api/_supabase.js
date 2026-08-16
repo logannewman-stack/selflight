@@ -217,6 +217,110 @@ export async function recordUsage(
   if (error) console.error(`[api] recording usage: ${error.message}`);
 }
 
+/* -------------------------------- billing -------------------------------- */
+
+/**
+ * The billing row for an account: plan id, Stripe ids, period end.
+ *
+ * Read with the service role, so it sees columns the browser's policy allows it
+ * to read about itself and nothing about anyone else.
+ */
+export async function billingFor(userId) {
+  if (!hasSupabase || !userId) return null;
+
+  const { data, error } = await db()
+    .from("profiles")
+    .select("plan, plan_since, plan_until, stripe_customer_id, stripe_subscription_id")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[api] reading billing: ${error.message}`);
+    return null;
+  }
+  return data || {};
+}
+
+/** Remember which Stripe customer an account is, so the webhook can find it. */
+export async function saveStripeCustomer(userId, customerId) {
+  if (!hasSupabase || !userId || !customerId) return;
+
+  const { error } = await db()
+    .from("profiles")
+    .upsert({ id: userId, stripe_customer_id: customerId }, { onConflict: "id" });
+
+  if (error) console.error(`[api] saving stripe customer: ${error.message}`);
+}
+
+/**
+ * Which account a Stripe customer belongs to.
+ *
+ * The webhook's only reliable handle on identity. It must come from this
+ * lookup rather than from anything in the request — a user id read out of a
+ * payload is a user id somebody can choose.
+ */
+export async function userIdForCustomer(customerId) {
+  if (!hasSupabase || !customerId) return null;
+
+  const { data, error } = await db()
+    .from("profiles")
+    .select("id")
+    .eq("stripe_customer_id", customerId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[api] resolving stripe customer: ${error.message}`);
+    return null;
+  }
+  return data?.id || null;
+}
+
+/**
+ * Put an account on a plan. The only function that does.
+ *
+ * `eventId` is Stripe's id for the delivery that caused this. Stripe retries,
+ * and events can arrive out of order — an upgrade's `updated` can land after
+ * the old subscription's `deleted`. Recording the id makes a repeat a no-op,
+ * and callers pass the subscription's own timestamps so a late delivery can be
+ * recognised as late rather than applied on top of newer state.
+ */
+export async function setPlan(userId, planId, { subscriptionId = null, until = null, eventId = null } = {}) {
+  if (!hasSupabase || !userId) return { ok: false, reason: "no user" };
+
+  // An unknown plan id becomes free rather than being written through. A typo
+  // in an environment variable must cost somebody their plan, never hand them
+  // the largest one we sell.
+  const plan = planFor(planId).id;
+
+  if (eventId) {
+    const { data } = await db()
+      .from("profiles")
+      .select("stripe_event_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (data?.stripe_event_id === eventId) return { ok: true, repeated: true, plan };
+  }
+
+  const { error } = await db().from("profiles").upsert(
+    {
+      id: userId,
+      plan,
+      plan_since: new Date().toISOString(),
+      plan_until: until,
+      stripe_subscription_id: subscriptionId,
+      stripe_event_id: eventId
+    },
+    { onConflict: "id" }
+  );
+
+  if (error) {
+    console.error(`[api] setting plan: ${error.message}`);
+    return { ok: false, reason: error.message };
+  }
+  return { ok: true, plan };
+}
+
 /**
  * A project's name and instructions, or null.
  *

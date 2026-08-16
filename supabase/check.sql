@@ -45,5 +45,9 @@ from (
   select '0009_credits.sql',
          exists (select 1 from information_schema.columns
                  where table_name='usage_events' and column_name='credits')
+  union all
+  select '0010_billing.sql',
+         exists (select 1 from information_schema.columns
+                 where table_name='profiles' and column_name='stripe_customer_id')
 ) m
 order by m.file;
