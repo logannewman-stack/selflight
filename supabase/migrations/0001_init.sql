@@ -210,6 +210,12 @@ create table if not exists public.usage_events (
   -- Whether the reply paid a per-request search fee. On Sonar that fee is over
   -- half the cost of a message, so a cost is not explainable without it.
   searched boolean not null default true,
+  -- Credits charged against the person's monthly allowance: 1 for Quick, 2 for
+  -- Balanced, 3 for Deep. Weighted so a credit costs roughly the same whichever
+  -- model it buys — see api/_pricing.js. Nullable because rows written before
+  -- credits existed have none, and those are estimated from tokens at read time
+  -- rather than backfilled with a guess.
+  credits integer,
   created_at timestamptz not null default now()
 );
 

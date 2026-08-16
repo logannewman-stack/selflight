@@ -8,8 +8,8 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { provider } from "./provider.js";
-import { MONTHLY_TOKEN_CAP, hasSupabase } from "./_supabase.js";
-import { PLANS, marginOf, money } from "./_pricing.js";
+import { MONTHLY_CREDIT_CAP, hasSupabase } from "./_supabase.js";
+import { PLANS, marginOf, messagesIn, money } from "./_pricing.js";
 
 const TABLES = [
   "profiles",
@@ -58,6 +58,7 @@ export const RECENT_COLUMNS = [
   ["connector_secrets", "expires_at", "0003_connections.sql"],
   ["usage_events", "cost_micros", "0005_money.sql"],
   ["usage_events", "searched", "0005_money.sql"],
+  ["usage_events", "credits", "0009_credits.sql"],
   ["profiles", "plan", "0005_money.sql"],
   ["profiles", "plan_since", "0005_money.sql"],
   ["chats", "pinned", "0006_chats.sql"],
@@ -82,7 +83,7 @@ export default async function handler(req, res) {
   const report = {
     model: await checkModel(live),
     accounts: await checkAccounts(),
-    cap: MONTHLY_TOKEN_CAP,
+    cap: MONTHLY_CREDIT_CAP,
     // What's on sale, with the margin arithmetic already done. Published here
     // rather than restated in the interface, so a price can only ever be
     // changed in one place.
@@ -93,7 +94,13 @@ export default async function handler(req, res) {
         name: plan.name,
         blurb: plan.blurb,
         priceCents: plan.priceCents,
-        messages: plan.cap ? Math.round(plan.cap / 4600) : null,
+        // Reported through messagesIn() rather than divided by a literal here.
+        // The old line was `plan.cap / 4600` — a hardcoded copy of a constant
+        // that lives in _pricing.js, so the day the allowance stopped being
+        // counted in tokens this quietly reported nonsense instead of failing.
+        messages: messagesIn(plan) || null,
+        credits: plan.credits || null,
+        deep: plan.deep !== false,
         connectors: plan.connectors,
         margin: {
           revenue: money(revenue),

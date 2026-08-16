@@ -41,5 +41,9 @@ from (
   select '0008_apis.sql',
          exists (select 1 from information_schema.columns
                  where table_name='connectors' and column_name='base_url')
+  union all
+  select '0009_credits.sql',
+         exists (select 1 from information_schema.columns
+                 where table_name='usage_events' and column_name='credits')
 ) m
 order by m.file;

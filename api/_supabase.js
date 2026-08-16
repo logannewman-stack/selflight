@@ -5,7 +5,7 @@
 // this file. The underscore keeps Vercel from turning it into a route.
 
 import { createClient } from "@supabase/supabase-js";
-import { costOf, planFor } from "./_pricing.js";
+import { CREDITS_PER_MESSAGE, TOKENS_PER_MESSAGE, costOf, creditsForModel, planFor } from "./_pricing.js";
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -14,18 +14,29 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // is how `npm run dev` works before you've set any of this up.
 export const hasSupabase = Boolean(url && serviceKey);
 
-// A deployment-wide override for the per-plan cap, counting input and output
-// tokens together. Unset means every account gets its plan's allowance, which
-// is the intended behaviour once there's something to sell; set it while
-// everyone is on the same footing. 0 removes the limit entirely.
+// A deployment-wide override for the per-plan allowance, in credits. Unset
+// means every account gets its plan's allowance, which is the intended
+// behaviour once there's something to sell; set it while everyone is on the
+// same footing. 0 removes the limit entirely.
 //
 // Null rather than a number when unset, so "no override" and "no limit" stay
-// distinguishable — a `?? 2_000_000` default would silently outrank every plan.
-export const MONTHLY_TOKEN_CAP =
-  process.env.SELFLIGHT_MONTHLY_TOKEN_CAP === undefined ||
-  process.env.SELFLIGHT_MONTHLY_TOKEN_CAP === ""
+// distinguishable — a `?? 2_000` default would silently outrank every plan.
+//
+// The old SELFLIGHT_MONTHLY_TOKEN_CAP is still honoured, converted, so a
+// deployment that has one set doesn't silently become unlimited the moment
+// allowances stop being counted in tokens. The new name wins where both exist.
+const read = (name) =>
+  process.env[name] === undefined || process.env[name] === "" ? null : Number(process.env[name]);
+
+const legacyTokens = read("SELFLIGHT_MONTHLY_TOKEN_CAP");
+
+export const MONTHLY_CREDIT_CAP =
+  read("POLSTAR_MONTHLY_CREDIT_CAP") ??
+  (legacyTokens === null
     ? null
-    : Number(process.env.SELFLIGHT_MONTHLY_TOKEN_CAP);
+    : legacyTokens === 0
+      ? 0
+      : Math.max(1, Math.round((legacyTokens / TOKENS_PER_MESSAGE) * CREDITS_PER_MESSAGE)));
 
 let admin;
 
@@ -122,12 +133,12 @@ export async function planOf(userId) {
 }
 
 /**
- * Returns { used, cap, exceeded, spent, plan }, where `used` is tokens and
- * `spent` is micro-dollars.
+ * Returns { used, cap, exceeded, spent, plan, messages }, where `used` and
+ * `cap` are credits and `spent` is micro-dollars.
  *
- * The cap comes from the person's plan, with SELFLIGHT_MONTHLY_TOKEN_CAP as an
- * override for a deployment that isn't selling anything yet — which is what
- * every deployment is on its first day.
+ * The allowance comes from the person's plan, with POLSTAR_MONTHLY_CREDIT_CAP
+ * as an override for a deployment that isn't selling anything yet — which is
+ * what every deployment is on its first day.
  *
  * Reading usage failing is not a reason to refuse somebody service, so it fails
  * open and says so in the log.
@@ -136,24 +147,42 @@ export async function usageThisMonth(userId) {
   const plan = await planOf(userId);
   // An explicit env cap wins, then the plan's. Zero in either means no limit —
   // which is right for bring-your-own-key, where the tokens aren't ours.
-  const cap = MONTHLY_TOKEN_CAP ?? plan.cap;
+  const cap = MONTHLY_CREDIT_CAP ?? plan.credits;
 
   const { data, error } = await db()
     .from("usage_events")
-    .select("input_tokens, output_tokens, cost_micros")
+    .select("credits, input_tokens, output_tokens, model, cost_micros")
     .eq("user_id", userId)
     .gte("created_at", monthStart());
 
   if (error) {
     console.error(`[api] reading usage: ${error.message}`);
-    return { used: 0, spent: 0, cap, plan, exceeded: false };
+    return { used: 0, spent: 0, cap, plan, messages: 0, exceeded: false };
   }
 
   const rows = data || [];
-  const used = rows.reduce((sum, r) => sum + r.input_tokens + r.output_tokens, 0);
+  const used = rows.reduce((sum, r) => sum + creditsOf(r), 0);
   const spent = rows.reduce((sum, r) => sum + Number(r.cost_micros || 0), 0);
 
-  return { used, spent, cap, plan, exceeded: Boolean(cap) && used >= cap };
+  return {
+    used,
+    spent,
+    cap,
+    plan,
+    // What's left, in the unit the person was sold.
+    messages: cap ? Math.max(0, Math.floor((cap - used) / CREDITS_PER_MESSAGE)) : Infinity,
+    exceeded: Boolean(cap) && used >= cap
+  };
+}
+
+// Rows written before credits existed have none. Estimating from tokens keeps
+// this month's usage continuous across the change — counting those rows as
+// zero would hand every existing account a fresh allowance on deploy day.
+function creditsOf(row) {
+  if (row.credits !== null && row.credits !== undefined) return Number(row.credits);
+  const tokens = (row.input_tokens || 0) + (row.output_tokens || 0);
+  if (!tokens) return 0;
+  return Math.max(1, Math.round((tokens / TOKENS_PER_MESSAGE) * creditsForModel(row.model)));
 }
 
 /**
@@ -165,9 +194,13 @@ export async function usageThisMonth(userId) {
  */
 export async function recordUsage(
   userId,
-  { kind = "chat", model, input = 0, output = 0, searched = true }
+  { kind = "chat", model, input = 0, output = 0, searched = true, credits = null }
 ) {
   if (!userId || (!input && !output)) return;
+
+  // Credits are what the allowance is spent in, so a turn that somehow arrives
+  // without them still costs the model's going rate rather than nothing.
+  const charged = credits ?? creditsForModel(model);
 
   const { error } = await db().from("usage_events").insert({
     user_id: userId,
@@ -176,6 +209,7 @@ export async function recordUsage(
     input_tokens: input,
     output_tokens: output,
     searched,
+    credits: charged,
     cost_micros: costOf({ model, input, output, searched })
   });
 

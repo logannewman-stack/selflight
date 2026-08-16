@@ -60,65 +60,161 @@ export function costOf({ model, input = 0, output = 0, searched = true }) {
   return Math.round(tokens + (searched ? rate.search : 0));
 }
 
+/* -------------------------------- credits -------------------------------- */
+
+// Which model answers, and what it costs the person asking.
+//
+// One dial does both jobs. The Quick/Balanced/Deep control already existed and
+// already reached the model — it just set the *effort* level and left every
+// request on the same model, so "quick" cost the same as "deep" and the setting
+// was, financially, decoration. Now it picks the model too.
+//
+// Credits are the unit people are billed in, and the weights are set so a
+// credit costs roughly the same whatever it's spent on. That is the whole point
+// of the design: without it, an account that only uses Deep costs three and a
+// half times more than one that only uses Quick, on the same allowance.
+export const MODELS = {
+  quick: "claude-haiku-4-5",
+  balanced: "claude-sonnet-5",
+  deep: "claude-opus-5"
+};
+
+// Measured, not guessed: at ~4,600 tokens a message and a 40% search rate, a
+// message costs 1.0¢ / 2.3¢ / 3.6¢ on the three models. Charging 1 / 2 / 3
+// credits puts the cost of a credit at 1.0¢ / 1.15¢ / 1.20¢ — flat enough that
+// the allowance means the same thing everywhere, and tilted just far enough
+// that the dearest model is never the cheapest way to spend one.
+// pricing.test.mjs holds these weights to that, so a rate change that breaks
+// the relationship fails a test rather than quietly eating the margin.
+export const CREDITS = { quick: 1, balanced: 2, deep: 3 };
+
+// What a plan's allowance is quoted in. A "message" on the pricing page means a
+// Balanced one, because that's what the app does by default.
+export const CREDITS_PER_MESSAGE = CREDITS.balanced;
+
+export const DEFAULT_DEPTH = "balanced";
+
+// Not every model in MODELS takes the same request shape. Haiku 4.5 predates
+// adaptive thinking and the effort parameter, and sending either returns a 400
+// — so routing Quick there without this gate would have failed every single
+// Quick request. The 5-series models all take both.
+const NO_EFFORT = new Set(["claude-haiku-4-5"]);
+
+/** Whether this model accepts `output_config.effort` and adaptive thinking. */
+export function supportsEffort(model) {
+  return !NO_EFFORT.has(String(model || "").trim());
+}
+
+/** The depth to actually run at — a plan that doesn't include Deep can't ask for it. */
+export function depthFor(settings = {}, plan = null) {
+  const asked = MODELS[settings.depth] ? settings.depth : DEFAULT_DEPTH;
+  if (asked === "deep" && plan && plan.deep === false) return DEFAULT_DEPTH;
+  return asked;
+}
+
+/** Which model answers this turn. */
+export function modelFor(settings = {}, plan = null) {
+  return MODELS[depthFor(settings, plan)];
+}
+
+/** What this turn costs the person, in credits. */
+export function creditsFor(settings = {}, plan = null) {
+  return CREDITS[depthFor(settings, plan)];
+}
+
+/** Credits charged for one message on a given model — the reverse lookup. */
+export function creditsForModel(model) {
+  const depth = Object.keys(MODELS).find((d) => MODELS[d] === model);
+  return depth ? CREDITS[depth] : CREDITS.balanced;
+}
+
 /* --------------------------------- plans --------------------------------- */
 
-// Caps are in tokens because that's what the server can count mid-request, but
-// they're *set* in messages because that's the only unit anyone reasons in.
 // ~4,600 billed tokens per turn on a mid-length thread — the figure the whole
 // cost model in supabase/README.md is built on.
 export const TOKENS_PER_MESSAGE = 4600;
 
-const messages = (n) => n * TOKENS_PER_MESSAGE;
+// Allowances are set in messages because that is the only unit anybody reasons
+// in, and stored in credits because that is what the server can actually count.
+const messages = (n) => n * CREDITS_PER_MESSAGE;
 
 /**
  * What someone gets, and what it costs us at the ceiling.
  *
  * The ceiling is not the expected cost — it's the worst case, and the gap
- * between them is the whole business. A tester sending 120 messages costs about
- * $3 against a cap that would allow $12, so blended margin on a $20 plan sits
- * near 85% while the cap keeps a runaway script from ever making it negative.
+ * between them is the whole business. A typical account uses a fraction of its
+ * allowance, so blended margin runs far above the figures marginOf() reports;
+ * the cap exists so one scripted account can never make a month negative.
  *
- * `priceCents` is what to charge; 0 means free. `byok` plans use the person's
- * own API key, so they cost us nothing to serve and are priced for the software
- * rather than the tokens.
+ * `deep: false` locks the most expensive model out of a plan. On the free plan
+ * that is what keeps a signup from costing $2.41, and it gives the upgrade a
+ * reason to exist beyond a bigger number.
  */
 export const PLANS = {
   free: {
     id: "free",
     name: "Free",
     priceCents: 0,
-    cap: messages(40),
+    credits: messages(100),
+    deep: false,
     connectors: 0,
-    blurb: "Enough to find out whether you like it."
+    blurb: "100 messages a month. Enough to find out whether you like it."
+  },
+  starter: {
+    id: "starter",
+    name: "Starter",
+    priceCents: 1999,
+    credits: messages(250),
+    deep: true,
+    connectors: 8,
+    blurb: "250 messages, connected accounts, and the deepest model when you need it."
+  },
+  plus: {
+    id: "plus",
+    name: "Plus",
+    priceCents: 5000,
+    // 650, not 500. At 500 this tier charges 10¢ a message against Starter's
+    // 8¢ — two Starter plans would be cheaper for the same allowance, so the
+    // tier is one somebody works out not to buy. Every step up the ladder has
+    // to be better value per message than the step below it, which is what the
+    // ladder test in pricing.test.mjs enforces.
+    credits: messages(650),
+    deep: true,
+    connectors: 16,
+    blurb: "650 messages for people who use this every day."
   },
   pro: {
     id: "pro",
     name: "Pro",
-    priceCents: 2000,
-    cap: messages(500),
-    connectors: 8,
-    blurb: "Daily use, connected accounts, and every colour control."
+    priceCents: 10000,
+    // 1,400 rather than 1,250: at 1,250 this tier works out at 8.0¢ a message
+    // against Plus's 7.7¢, so the ladder stops descending and the bigger plan
+    // is the worse deal. Each rung has to reward going up.
+    credits: messages(1400),
+    deep: true,
+    connectors: 24,
+    blurb: "1,400 messages. Built for work that runs all day."
+  },
+  max: {
+    id: "max",
+    name: "Max",
+    priceCents: 20000,
+    // Same reason: 3,000 keeps the per-message price falling (6.7¢).
+    credits: messages(3000),
+    deep: true,
+    connectors: 48,
+    blurb: "3,000 messages and every limit lifted as far as it goes."
   },
   byok: {
     id: "byok",
     name: "Bring your own key",
-    priceCents: 800,
-    // No cap: they're spending their own money, and a limit on somebody else's
-    // budget is a limit that only annoys.
-    cap: 0,
-    connectors: 8,
-    blurb: "Your own Perplexity or Anthropic key. You pay the model; we charge for the app."
-  },
-  team: {
-    id: "team",
-    name: "Team",
-    priceCents: 3000,
-    // 600, not 1000: at 1000 the worst case leaves 13% margin, which is not a
-    // circuit breaker — it's a plan that stops working the month somebody
-    // scripts it. 30 messages a working day covers real use with room over.
-    cap: messages(600),
-    connectors: 16,
-    blurb: "Per seat. Shared connectors and colour packages across the workspace."
+    priceCents: 1000,
+    // No allowance: they're spending their own money, and a limit on somebody
+    // else's budget is a limit that only annoys.
+    credits: 0,
+    deep: true,
+    connectors: 48,
+    blurb: "Your own Anthropic key. You pay the model; we charge for the app."
   }
 };
 
@@ -128,31 +224,39 @@ export function planFor(id) {
   return PLANS[String(id || "").trim()] || PLANS.free;
 }
 
+/** A plan's allowance in messages, for anything a person reads. */
+export function messagesIn(plan) {
+  const { credits } = planFor(plan.id || plan);
+  return credits ? credits / CREDITS_PER_MESSAGE : 0;
+}
+
 /**
  * The number that decides everything: what one seat is worth at the margin.
  *
- * Returns micro-dollars of revenue, worst-case cost, and the margin between
- * them. Worst case assumes every token in the cap is spent on the most
- * expensive model configured — which is the only assumption that can't be
- * wrong in the direction that hurts.
+ * Worst case assumes every credit in the allowance is spent on the dearest
+ * model the plan allows — the only assumption that can't be wrong in the
+ * direction that hurts.
  */
-export function marginOf(plan, model = "sonar-reasoning-pro") {
-  const { priceCents, cap } = planFor(plan.id || plan);
-  const revenue = priceCents * 10_000; // cents → micro-dollars
+export function marginOf(plan, model) {
+  const resolved = planFor(plan.id || plan);
+  const { priceCents, credits } = resolved;
+  const revenue = priceCents * 10_000;
 
-  if (!cap) {
+  if (!credits) {
     // Bring-your-own-key: the tokens aren't ours, so the margin is the price.
     return { revenue, worstCost: 0, margin: revenue, ratio: revenue ? 1 : 0 };
   }
 
-  // Split the cap the way real traffic splits: roughly 90% input on a thread
-  // that resends its history every turn.
-  const worstCost = costOf({
-    model,
-    input: cap * 0.9,
-    output: cap * 0.1,
-    searched: false
-  }) + Math.round((cap / TOKENS_PER_MESSAGE) * rateFor(model).search);
+  // The dearest model this plan can actually reach. A plan with Deep locked off
+  // must not be costed as though its users could reach Opus.
+  const dearest = model || (resolved.deep === false ? MODELS.balanced : MODELS.deep);
+  const perMessage = creditsForModel(dearest);
+  const count = credits / perMessage;
+  const tokens = count * TOKENS_PER_MESSAGE;
+
+  const worstCost =
+    costOf({ model: dearest, input: tokens * 0.9, output: tokens * 0.1, searched: false }) +
+    Math.round(count * rateFor(dearest).search);
 
   return {
     revenue,

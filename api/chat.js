@@ -7,6 +7,7 @@
 import { BUILD_PROMPT, TITLE_PROMPT, composeSystemPrompt, toApiMessages } from "./prompt.js";
 import { missingKey, provider, providerFor, userFacingError } from "./provider.js";
 import { admittedNotKnowing, record } from "./_failures.js";
+import { CREDITS_PER_MESSAGE, creditsFor } from "./_pricing.js";
 import {
   connectorsFor,
   hasSupabase,
@@ -38,14 +39,21 @@ export default async function handler(req, res) {
   // With a Supabase project configured, a sign-in is required. Otherwise the
   // first person to find the URL spends the API key's budget for everyone.
   let user = null;
+  let plan = null;
   if (hasSupabase) {
     user = await userFromRequest(req);
     if (!user) return json(res, 401, { error: "Your session expired. Sign in again." });
 
     const usage = await usageThisMonth(user.id);
+    plan = usage.plan;
     if (usage.exceeded) {
+      // Said in messages, because that's the unit they were sold. "You've used
+      // 460,000 tokens" is true and tells nobody anything.
+      const allowance = Math.round(usage.cap / CREDITS_PER_MESSAGE);
       return json(res, 429, {
-        error: `You've used this month's allowance of ${usage.cap.toLocaleString()} tokens. It resets on the 1st.`
+        error:
+          `You've used this month's ${allowance.toLocaleString()} messages on the ` +
+          `${usage.plan.name} plan. It resets on the 1st.`
       });
     }
   }
@@ -83,13 +91,14 @@ export default async function handler(req, res) {
     settings,
     connectors,
     kind: build ? "build" : "chat",
-    user
+    user,
+    plan
   });
 }
 
 /* ------------------------------ the exchange ----------------------------- */
 
-async function converse(req, res, { system, messages, settings, connectors, kind, user }) {
+async function converse(req, res, { system, messages, settings, connectors, kind, user, plan }) {
   // A turn with a connector goes to a model that can call one, if there is one.
   const model = providerFor({ connectors });
 
@@ -139,6 +148,7 @@ async function converse(req, res, { system, messages, settings, connectors, kind
       settings,
       connectors,
       kind,
+      plan,
       signal: controller.signal,
       emit,
       ...extra
@@ -201,7 +211,9 @@ async function converse(req, res, { system, messages, settings, connectors, kind
   // not "Perplexity". The rate table is keyed by model id, so passing the
   // provider's display name here would price every call as unknown and quietly
   // make the margin figure fiction.
-  if (user) await recordUsage(user.id, { kind, ...usage });
+  // Charged in credits at the depth they actually chose — which is also the
+  // depth that decided which model answered, so the two can't drift apart.
+  if (user) await recordUsage(user.id, { kind, credits: creditsFor(settings, plan), ...usage });
 
   // Saying "I don't know" is the behaviour we want, not a bug — and it is also
   // the clearest evidence there is of what the product can't do yet, which is
@@ -230,12 +242,21 @@ async function handleTitle(res, messages, user) {
     .join("\n\n");
 
   try {
-    const { text, usage } = await model.title({
+    const { text, model: modelId, usage } = await model.title({
       messages: [{ role: "user", content: opening }],
       prompt: TITLE_PROMPT
     });
 
-    if (user) await recordUsage(user.id, { kind: "title", model: model.name, ...usage });
+    // `model.name` is a display name — "Claude" — and the rate table is keyed
+    // by model id, so passing it here priced every title as an unknown model at
+    // the dearest rate we know. The provider reports the id it actually used.
+    //
+    // Credits are zero on purpose: a title is work the app chose to do, not a
+    // message the person sent, and charging their allowance for it would be
+    // billing them for our own housekeeping.
+    if (user) {
+      await recordUsage(user.id, { kind: "title", model: modelId, credits: 0, ...usage });
+    }
     return json(res, 200, { title: cleanTitle(text) });
   } catch (err) {
     // Titles are cosmetic — the client falls back to the first message.

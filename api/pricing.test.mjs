@@ -9,15 +9,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  CREDITS,
+  CREDITS_PER_MESSAGE,
+  MODELS,
   PLANS,
   PLAN_IDS,
   RATES,
   TOKENS_PER_MESSAGE,
   costOf,
+  creditsFor,
+  creditsForModel,
+  depthFor,
   marginOf,
+  messagesIn,
+  modelFor,
   money,
   planFor,
-  rateFor
+  rateFor,
+  supportsEffort
 } from "./_pricing.js";
 
 const cents = (micros) => micros / 10_000;
@@ -96,7 +105,7 @@ test("every plan is coherent", () => {
     assert.equal(plan.id, id, `${id}: id must match its key`);
     assert.ok(plan.name && plan.blurb, `${id}: needs a name and a description`);
     assert.ok(plan.priceCents >= 0, `${id}: price can't be negative`);
-    assert.ok(plan.cap >= 0, `${id}: cap can't be negative`);
+    assert.ok(plan.credits >= 0, `${id}: allowance can't be negative`);
   }
 });
 
@@ -107,41 +116,154 @@ test("an unknown plan falls back to free, never to the generous one", () => {
   assert.equal(planFor("").id, "free");
 });
 
-test("the free plan is small enough to be sustainable", () => {
-  const { worstCost } = marginOf(PLANS.free);
-  assert.ok(cents(worstCost) < 200, `free costs up to ${money(worstCost)} — too much to give away`);
+/* -------------------------------- credits -------------------------------- */
+
+test("a credit costs about the same whichever model it buys", () => {
+  // The whole reason credits exist. If Deep were the cheapest way to spend one,
+  // every account would drift to the dearest model on the same allowance and
+  // the plan economics would quietly invert.
+  const perCredit = {};
+  for (const [depth, model] of Object.entries(MODELS)) {
+    const message =
+      costOf({ model, input: TOKENS_PER_MESSAGE * 0.9, output: TOKENS_PER_MESSAGE * 0.1, searched: false }) +
+      Math.round(rateFor(model).search * 0.4);
+    perCredit[depth] = message / CREDITS[depth];
+  }
+
+  const values = Object.values(perCredit);
+  const spread = Math.max(...values) / Math.min(...values);
+  assert.ok(
+    spread < 1.5,
+    `a credit costs ${JSON.stringify(perCredit)} — spread of ${spread.toFixed(2)}x, expected under 1.5x`
+  );
+
+  // And the dearest model must never be the best value per credit, or the
+  // weighting is an incentive to use it.
+  assert.ok(
+    perCredit.deep >= perCredit.quick,
+    `deep is ${perCredit.deep.toFixed(0)} per credit vs quick's ${perCredit.quick.toFixed(0)} — deep must not be the bargain`
+  );
 });
 
+test("a dearer depth costs more credits, in order", () => {
+  assert.ok(CREDITS.quick < CREDITS.balanced, "balanced must cost more than quick");
+  assert.ok(CREDITS.balanced < CREDITS.deep, "deep must cost more than balanced");
+});
+
+test("the depth dial actually changes the model", () => {
+  // It used to change only the effort level, leaving every request on the same
+  // model — so "quick" and "deep" cost identical money and the setting was,
+  // financially, decoration.
+  const picked = new Set(["quick", "balanced", "deep"].map((depth) => modelFor({ depth })));
+  assert.equal(picked.size, 3, "each depth must reach a different model");
+});
+
+test("an unknown depth falls back to balanced, not to the dearest", () => {
+  assert.equal(depthFor({ depth: "ludicrous" }), "balanced");
+  assert.equal(depthFor({}), "balanced");
+  assert.equal(modelFor({ depth: undefined }), MODELS.balanced);
+  assert.equal(creditsFor({ depth: null }), CREDITS.balanced);
+});
+
+test("a plan without Deep can't be charged for it", () => {
+  const free = PLANS.free;
+  assert.equal(free.deep, false, "the free plan is the one that locks Deep off");
+  assert.equal(modelFor({ depth: "deep" }, free), MODELS.balanced);
+  assert.equal(creditsFor({ depth: "deep" }, free), CREDITS.balanced);
+
+  // And a paid plan still gets it.
+  assert.equal(modelFor({ depth: "deep" }, PLANS.starter), MODELS.deep);
+});
+
+test("credits map back from a model id, so a recorded row can be priced", () => {
+  for (const [depth, model] of Object.entries(MODELS)) {
+    assert.equal(creditsForModel(model), CREDITS[depth], `${model} should map back to ${depth}`);
+  }
+  // An unrecognised model must not be free.
+  assert.ok(creditsForModel("something-we-added-and-forgot") > 0);
+});
+
+test("the models that reject the effort parameter are gated", () => {
+  // Haiku 4.5 predates adaptive thinking and `effort`; sending either is a 400.
+  // Routing Quick there without this gate fails every Quick request.
+  assert.equal(supportsEffort("claude-haiku-4-5"), false);
+  assert.equal(supportsEffort(MODELS.balanced), true);
+  assert.equal(supportsEffort(MODELS.deep), true);
+});
+
+/* ------------------------------- the ladder ------------------------------ */
+
 test("every paid plan keeps a real margin even at its ceiling", () => {
-  // The ceiling is the worst case, not the expectation — typical use leaves
-  // ~93%. But a plan that only just breaks even at the cap isn't a circuit
-  // breaker, it's a plan that stops working the month somebody scripts it.
-  // 30% is the floor a price change has to clear.
+  // The ceiling is the worst case — every credit spent on the dearest model the
+  // plan allows, every reply paying a search fee. Typical use runs far below it.
+  // A plan that only just breaks even at the cap isn't a circuit breaker, it's
+  // a plan that stops working the month somebody scripts it.
   for (const id of PLAN_IDS) {
     const plan = PLANS[id];
     if (!plan.priceCents) continue;
 
     const { revenue, worstCost, ratio } = marginOf(plan);
     assert.ok(
-      ratio >= 0.3,
-      `${id}: ${money(revenue)} against ${money(worstCost)} worst case — ${Math.round(ratio * 100)}% margin, floor is 30%`
+      ratio >= 0.5,
+      `${id}: ${money(revenue)} against ${money(worstCost)} worst case — ${Math.round(ratio * 100)}% margin, floor is 50%`
     );
   }
 });
 
-test("typical use is far more profitable than the ceiling — that gap is the business", () => {
-  // 120 messages a month is the repo's own "real tester" figure.
-  const typical = costOf({
-    model: "sonar-reasoning-pro",
-    input: 120 * 4140,
-    output: 120 * 460
-  });
-  const { revenue, worstCost } = marginOf(PLANS.pro);
+test("each step up the ladder is better value per message than the one below", () => {
+  // Otherwise a tier is one somebody works out not to buy: at $50 for 500
+  // messages, two $19.99 plans were cheaper for the same allowance.
+  const paid = PLAN_IDS.map((id) => PLANS[id])
+    .filter((p) => p.priceCents > 0 && p.credits > 0)
+    .sort((a, b) => a.priceCents - b.priceCents);
 
-  assert.ok(typical < worstCost / 4, "typical use should be a fraction of the cap");
+  for (let i = 1; i < paid.length; i++) {
+    const below = paid[i - 1].priceCents / messagesIn(paid[i - 1]);
+    const here = paid[i].priceCents / messagesIn(paid[i]);
+    assert.ok(
+      here <= below,
+      `${paid[i].id} charges ${here.toFixed(1)}¢ a message against ${paid[i - 1].id}'s ${below.toFixed(1)}¢ — a higher tier must never cost more per message`
+    );
+  }
+});
+
+test("the free plan is bounded, and bounded by structure rather than by hope", () => {
+  const { worstCost } = marginOf(PLANS.free);
+
+  // A deliberate acquisition cost, stated rather than discovered: 100 messages
+  // a month at the Balanced rate. Raise the allowance and this test is what
+  // tells you what it now costs to give away.
   assert.ok(
-    (revenue - typical) / revenue > 0.85,
-    `typical margin is ${Math.round(((revenue - typical) / revenue) * 100)}% — expected over 85%`
+    cents(worstCost) < 350,
+    `free costs up to ${money(worstCost)} per signup — over the $3.50 that was signed off`
+  );
+
+  // The bound holds because Deep is locked off, not because we hope nobody
+  // picks it. If that flag flips, the ceiling moves and this catches it.
+  assert.equal(PLANS.free.deep, false);
+});
+
+test("typical use is far more profitable than the ceiling — that gap is the business", () => {
+  // 120 messages a month is the repo's own "real tester" figure, at the mix a
+  // real account uses rather than all-Deep.
+  const typical =
+    costOf({
+      model: MODELS.balanced,
+      input: 100 * TOKENS_PER_MESSAGE * 0.9,
+      output: 100 * TOKENS_PER_MESSAGE * 0.1
+    }) +
+    costOf({
+      model: MODELS.deep,
+      input: 20 * TOKENS_PER_MESSAGE * 0.9,
+      output: 20 * TOKENS_PER_MESSAGE * 0.1
+    });
+
+  const { revenue, worstCost } = marginOf(PLANS.starter);
+
+  assert.ok(typical < worstCost, "typical use should sit below the cap");
+  assert.ok(
+    (revenue - typical) / revenue > 0.6,
+    `typical margin is ${Math.round(((revenue - typical) / revenue) * 100)}% — expected over 60%`
   );
 });
 
@@ -151,20 +273,56 @@ test("bring-your-own-key is all margin, because the tokens aren't ours", () => {
   assert.equal(ratio, 1);
 });
 
-test("caps are expressed in whole messages", () => {
+test("allowances are a whole number of messages", () => {
   for (const id of PLAN_IDS) {
-    const { cap } = PLANS[id];
-    if (!cap) continue;
-    assert.equal(cap % TOKENS_PER_MESSAGE, 0, `${id}: cap should be a whole number of messages`);
+    const { credits } = PLANS[id];
+    if (!credits) continue;
+    assert.equal(credits % CREDITS_PER_MESSAGE, 0, `${id}: allowance should be whole messages`);
+    assert.equal(Number.isInteger(messagesIn(PLANS[id])), true);
   }
 });
 
-test("a dearer model narrows the margin rather than being ignored", () => {
-  const cheap = marginOf(PLANS.pro, "sonar");
-  const dear = marginOf(PLANS.pro, "claude-opus-5");
+test("a dearer model costs more per message, in the order the credits say", () => {
+  // Note this is per *message*, not per allowance. Under a credit system the
+  // cheap model can have the higher ceiling — the same allowance buys 3x as
+  // many Quick messages, and the flat per-search fee is charged on every one of
+  // them. That's the credit weighting doing its job, not a bug, so the
+  // invariant worth holding is the per-message ordering.
+  const shape = { input: TOKENS_PER_MESSAGE * 0.9, output: TOKENS_PER_MESSAGE * 0.1 };
+  const quick = costOf({ ...shape, model: MODELS.quick });
+  const balanced = costOf({ ...shape, model: MODELS.balanced });
+  const deep = costOf({ ...shape, model: MODELS.deep });
 
-  assert.ok(dear.worstCost > cheap.worstCost, "switching to a dearer model must move the worst case");
-  assert.equal(dear.revenue, cheap.revenue, "and must not change the price");
+  assert.ok(quick < balanced && balanced < deep, `${quick} / ${balanced} / ${deep} out of order`);
+});
+
+test("the ceiling clears the margin floor on every model, not just the dearest", () => {
+  // marginOf() costs a plan at the dearest model it allows, which is the right
+  // default — but because the cheap model buys more messages per credit, the
+  // worst case can live somewhere else entirely. Check all three.
+  for (const id of PLAN_IDS) {
+    const plan = PLANS[id];
+    if (!plan.priceCents || !plan.credits) continue;
+
+    for (const model of Object.values(MODELS)) {
+      if (plan.deep === false && model === MODELS.deep) continue;
+      const { revenue, worstCost, ratio } = marginOf(plan, model);
+      assert.ok(
+        ratio >= 0.5,
+        `${id} on ${model}: ${money(revenue)} against ${money(worstCost)} — ${Math.round(ratio * 100)}%, floor is 50%`
+      );
+    }
+  }
+});
+
+test("the free plan is bounded on every model it can reach", () => {
+  for (const model of [MODELS.quick, MODELS.balanced]) {
+    const { worstCost } = marginOf(PLANS.free, model);
+    assert.ok(
+      cents(worstCost) < 350,
+      `free on ${model} costs up to ${money(worstCost)} per signup — over the $3.50 signed off`
+    );
+  }
 });
 
 /* ------------------------------- formatting ------------------------------ */

@@ -343,7 +343,9 @@ function Accounts({ accounts, cap }) {
       <p className="mt-2 text-muted">
         {accounts.accounts} account{accounts.accounts === 1 ? "" : "s"} so far ·{" "}
         {accounts.tokensThisMonth.toLocaleString()} tokens used this month · limit{" "}
-        {cap ? `${cap.toLocaleString()} per person per month` : "each plan's own"}
+        {cap
+          ? `${Math.round(cap / 2).toLocaleString()} messages per person per month`
+          : "each plan's own"}
       </p>
 
       {/* Tokens don't tell you whether the business works. This does. */}

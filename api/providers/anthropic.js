@@ -7,6 +7,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { effortFor, toMcpServers, toTools, toolsWithoutMcp } from "../prompt.js";
+import { MODELS, modelFor, supportsEffort } from "../_pricing.js";
 import { callApi, toolFor, toolResult } from "../_apis.js";
 
 export const name = "Claude";
@@ -18,7 +19,10 @@ export const configured = () => Boolean(process.env.ANTHROPIC_API_KEY);
 // having. provider.js routes a turn with active connectors here when it can.
 export const supportsConnectors = true;
 
-const MODEL = "claude-opus-5";
+// Which Claude answers is the Quick/Balanced/Deep dial, not a constant — see
+// _pricing.js. Titles are the exception: they're a fixed, trivial job nobody
+// chose a depth for, so they always run on the cheapest model.
+const TITLE_MODEL = MODELS.quick;
 const MAX_TOKENS = 64000;
 
 // Server-side tools pause after a batch of work and expect to be resumed.
@@ -34,8 +38,43 @@ function anthropic() {
   return client;
 }
 
-export async function converse({ system, messages, settings = {}, connectors = [], kind, signal, emit }) {
+/**
+ * The request every turn is built from — exported so its shape can be tested
+ * without a network call, which is the only way to catch the failure this
+ * function exists to prevent.
+ *
+ * Effort and adaptive thinking are 5-series features. On a model that predates
+ * them both fields are a 400, so the whole block is gated rather than sent
+ * hopefully — routing Quick to Haiku without this would have failed every
+ * single Quick request, on the first one, in production.
+ *
+ * `display: "summarized"` is not optional if the thinking panel is to show
+ * anything. These models default it to "omitted", which still streams thinking
+ * blocks — with empty text. Without this the panel renders nothing, forever,
+ * and never errors, which is the kind of broken nobody files a bug about.
+ */
+export function baseRequest({ model, system, settings = {}, build = false }) {
+  return {
+    model,
+    max_tokens: MAX_TOKENS,
+    system,
+    ...(supportsEffort(model)
+      ? {
+          // Generated pages are worth more thinking than a chat reply.
+          output_config: { effort: build ? "high" : effortFor(settings) },
+          thinking: { type: "adaptive", display: "summarized" }
+        }
+      : {}),
+    // Caches the conversation prefix so each turn re-reads it cheaply.
+    cache_control: { type: "ephemeral" }
+  };
+}
+
+export async function converse({ system, messages, settings = {}, connectors = [], kind, plan = null, signal, emit }) {
   const build = kind === "build";
+  // A generated page is worth the best model whatever dial the chat is set to;
+  // everything else follows the person's choice, bounded by their plan.
+  const model = build ? MODELS.deep : modelFor(settings, plan);
   const servers = build ? [] : toMcpServers(connectors);
   // Connectors come in two kinds. An MCP server is handed to Anthropic and run
   // on their side; a plain API is a tool we define here and call ourselves.
@@ -44,17 +83,9 @@ export async function converse({ system, messages, settings = {}, connectors = [
     : connectors.filter((c) => c.kind === "http" && c.enabled !== false && c.baseUrl);
   const tools = build ? [] : [...toTools(settings, servers), ...apis.map((c) => toolFor(toRow(c)))];
 
-  const base = {
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    system,
-    // Generated pages are worth more thinking than a chat reply.
-    output_config: { effort: build ? "high" : effortFor(settings) },
-    // Caches the conversation prefix so each turn re-reads it cheaply.
-    cache_control: { type: "ephemeral" }
-  };
+  const base = baseRequest({ model, system, settings, build });
 
-  const state = { emitted: false, input: 0, output: 0 };
+  const state = { emitted: false, input: 0, output: 0, searched: false };
   let history = messages;
 
   for (let round = 0; round < MAX_CONTINUATIONS; round++) {
@@ -116,14 +147,17 @@ export async function converse({ system, messages, settings = {}, connectors = [
     break;
   }
 
-  // `searched` follows whether web search was actually available this turn:
-  // Claude's search is a tool with a per-request fee, so a turn that never
-  // reached for it never paid one.
+  // `searched` is now whether the model actually ran a search, not whether it
+  // was allowed to. The old version reported the setting, so every reply was
+  // billed a 1¢ search fee it mostly hadn't incurred — about a third of the
+  // apparent cost of a message, and wrong in the direction that makes the
+  // business look worse than it is. state.searched is set by pipe() when a
+  // web_search block actually appears in the stream.
   return {
     input: state.input,
     output: state.output,
-    model: MODEL,
-    searched: settings.webSearch !== false
+    model,
+    searched: state.searched
   };
 }
 
@@ -202,7 +236,12 @@ async function pipe(state, start, { signal, emit }) {
   try {
     for await (const event of stream) {
       if (event.type === "content_block_start") {
-        const activity = describeActivity(event.content_block);
+        const block = event.content_block;
+        // The one place that knows a search really happened.
+        if (block?.type === "server_tool_use" && block.name === "web_search") {
+          state.searched = true;
+        }
+        const activity = describeActivity(block);
         if (activity) emit.activity(activity);
       }
 
@@ -268,12 +307,15 @@ function recoverable(err) {
 
 export async function title({ messages, prompt }) {
   const message = await anthropic().messages.create({
-    model: MODEL,
+    model: TITLE_MODEL,
     max_tokens: 32,
     system: prompt,
     // A title needs no deliberation, and thinking would eat the token budget.
-    thinking: { type: "disabled" },
-    output_config: { effort: "low" },
+    // Both fields are gated: on the cheap model they'd be a 400, and it doesn't
+    // think by default anyway, so omitting them is the same behaviour.
+    ...(supportsEffort(TITLE_MODEL)
+      ? { thinking: { type: "disabled" }, output_config: { effort: "low" } }
+      : {}),
     messages
   });
 
@@ -281,6 +323,7 @@ export async function title({ messages, prompt }) {
 
   return {
     text: message.content.find((block) => block.type === "text")?.text || "",
+    model: TITLE_MODEL,
     usage: {
       input: message.usage?.input_tokens || 0,
       output: message.usage?.output_tokens || 0
