@@ -1,21 +1,24 @@
 // Which model answers.
 //
-// Perplexity is the default: it searches the live web on every question that
-// needs it, cites what it used, and costs a fraction of a frontier model.
-// Setting ANTHROPIC_API_KEY instead switches to Claude, which is slower and
-// dearer but supports MCP connectors and writes long enough replies for the
-// Code workspace to build a real page.
+// Claude is the default. It's the only one that can call a connected account,
+// and it's the one the Quick/Balanced/Deep dial routes across three models on
+// — so the cost argument that used to favour Perplexity no longer holds: Quick
+// runs on Haiku, which is cheaper per message than Sonar.
 //
-// Setting both keeps Perplexity — an explicit choice, so the cheaper one wins
-// by accident rather than the expensive one.
+// Perplexity remains as a fallback for a deployment that only has that key.
+// Setting both now keeps Claude. That order used to be reversed, on the
+// reasoning that the cheaper provider should win by accident rather than the
+// dearer one — which quietly meant that adding ANTHROPIC_API_KEY to a project
+// that still had PERPLEXITY_API_KEY set changed nothing at all, with no error
+// and no notice. Silence is the worst possible answer to "did my switch work".
 
-import * as perplexity from "./providers/perplexity.js";
 import * as anthropic from "./providers/anthropic.js";
+import * as perplexity from "./providers/perplexity.js";
 
-export const PROVIDERS = [perplexity, anthropic];
+export const PROVIDERS = [anthropic, perplexity];
 
 export function provider() {
-  return PROVIDERS.find((p) => p.configured()) || perplexity;
+  return PROVIDERS.find((p) => p.configured()) || anthropic;
 }
 
 /**
@@ -41,9 +44,9 @@ export function providerFor({ connectors = [] } = {}) {
 export function missingKey() {
   if (PROVIDERS.some((p) => p.configured())) return null;
   return (
-    "No model API key is set. Add PERPLEXITY_API_KEY to .env.local for local " +
-    "development, or to your Vercel project's environment variables. " +
-    "ANTHROPIC_API_KEY works too if you'd rather use Claude."
+    "No model API key is set. Add ANTHROPIC_API_KEY to your Vercel project's " +
+    "environment variables, or to .env.local for local development. Get one at " +
+    "console.anthropic.com under API keys."
   );
 }
 
