@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { effortFor, toMcpServers, toTools, toolsWithoutMcp } from "../prompt.js";
 import { MODELS, modelFor, supportsEffort } from "../_pricing.js";
 import { callApi, toolFor, toolResult } from "../_apis.js";
+import { record } from "../_failures.js";
 
 export const name = "Claude";
 export const keyName = "ANTHROPIC_API_KEY";
@@ -81,7 +82,11 @@ export async function converse({ system, messages, settings = {}, connectors = [
   const apis = build
     ? []
     : connectors.filter((c) => c.kind === "http" && c.enabled !== false && c.baseUrl);
-  const tools = build ? [] : [...toTools(settings, servers), ...apis.map((c) => toolFor(toRow(c)))];
+  // The model decides the tool shape, not the other way round — see
+  // webToolsFor() in _pricing.js.
+  const tools = build
+    ? []
+    : [...toTools(settings, servers, model), ...apis.map((c) => toolFor(toRow(c)))];
 
   const base = baseRequest({ model, system, settings, build });
 
@@ -189,7 +194,8 @@ async function runRound(state, params, tools, servers, io) {
       },
       betas: [],
       fallbacks: false,
-      notice: "Your connectors couldn't be reached, so this reply was written without them."
+      notice: "Your connectors couldn't be reached, so this reply was written without them.",
+      degraded: "connectors unreachable"
     });
   }
 
@@ -199,7 +205,13 @@ async function runRound(state, params, tools, servers, io) {
       params,
       betas: [],
       fallbacks: false,
-      notice: "Web tools aren't available on this API key, so this reply was written without them."
+      // Says what happened, not why. The previous wording — "aren't available
+      // on this API key" — named a cause this code has no way to know, and it
+      // was wrong: the key was fine and the tool version was wrong for the
+      // model. A confident wrong diagnosis in a user-facing string sends
+      // somebody looking in the one place the fault isn't.
+      notice: "Web search isn't working on this reply, so it was written without it.",
+      degraded: "web tools rejected"
     });
   }
 
@@ -207,7 +219,28 @@ async function runRound(state, params, tools, servers, io) {
   for (const variant of variants) {
     try {
       if (variant.notice) io.emit.notice(variant.notice);
-      return await pipe(state, () => openStream(variant), io);
+      const message = await pipe(state, () => openStream(variant), io);
+
+      // A degraded variant that *works* is the dangerous case: the reply
+      // arrives, the notice reads like a normal caveat, and a whole tier can
+      // sit without web search for weeks looking like ordinary operation.
+      // Filing it means it shows up beside real failures rather than only in a
+      // log nobody reads.
+      if (variant.degraded) {
+        await record({
+          kind: "model",
+          severity: "degraded",
+          summary: `Answered on ${params.model} with ${variant.degraded}`,
+          detail:
+            `Every earlier variant was rejected, so this turn fell back to "${variant.label}". ` +
+            `Last error: ${lastError?.message || "none recorded"}`,
+          context: { model: params.model, variant: variant.label },
+          recovered: true,
+          recovery: `Answered without ${variant.degraded}.`
+        }).catch(() => {});
+      }
+
+      return message;
     } catch (err) {
       lastError = err;
       // Once bytes are on the wire, retrying would duplicate the reply.

@@ -105,6 +105,37 @@ export function supportsEffort(model) {
   return !NO_EFFORT.has(String(model || "").trim());
 }
 
+// The dated web tools come in two shapes. The `_20260209` and later versions
+// run the search or fetch *inside* code execution so the results can be
+// filtered before they reach the context window — which is why they default
+// `allowed_callers` to `["code_execution_20260120"]`, and why a model that
+// can't call tools programmatically rejects them with a 400 telling you to set
+// `allowed_callers: ["direct"]`.
+//
+// Anthropic documents dynamic filtering as Claude 4.6 and later. Haiku 4.5
+// predates it, so the Quick tier was sending a tool shape its model has no way
+// to run. The basic versions below are the ones that work there.
+const NO_DYNAMIC_FILTERING = new Set(["claude-haiku-4-5"]);
+
+/** Whether this model can run web search and fetch through code execution. */
+export function supportsDynamicFiltering(model) {
+  return !NO_DYNAMIC_FILTERING.has(String(model || "").trim());
+}
+
+/**
+ * The web tool versions this model actually accepts.
+ *
+ * Two facts kept together on purpose: a model that can't do dynamic filtering
+ * needs the older *pair*, and mixing them — a dated search with a basic fetch —
+ * is a 400 on one of the two rather than on both, which is the confusing half
+ * of this bug.
+ */
+export function webToolsFor(model) {
+  return supportsDynamicFiltering(model)
+    ? { search: "web_search_20260209", fetch: "web_fetch_20260209" }
+    : { search: "web_search_20250305", fetch: "web_fetch_20250910" };
+}
+
 /** The depth to actually run at — a plan that doesn't include Deep can't ask for it. */
 export function depthFor(settings = {}, plan = null) {
   const asked = MODELS[settings.depth] ? settings.depth : DEFAULT_DEPTH;

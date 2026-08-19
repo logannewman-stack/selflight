@@ -1,3 +1,5 @@
+import { MODELS, webToolsFor } from "./_pricing.js";
+
 // Turns the user's settings into the exact request pieces the model receives:
 // the system prompt, the effort level, the tool list, and the MCP servers.
 //
@@ -169,10 +171,22 @@ export function tierFor(settings = {}) {
   return TIERS[settings.depth] || TIERS.balanced;
 }
 
-export function toTools(settings = {}, servers = []) {
+/**
+ * The tools for one turn, in the shape the answering model accepts.
+ *
+ * `model` is not optional in spirit: the dated web tool versions differ by
+ * model, and hardcoding one pair is what silently cost the Quick tier its
+ * ability to search. It defaults to the Balanced model so an old two-argument
+ * call still produces a valid request rather than an empty tool list — the
+ * failure of a wrong default should be a wrong-but-working request, not a
+ * missing capability nobody notices.
+ */
+export function toTools(settings = {}, servers = [], model = MODELS.balanced) {
+  const web = webToolsFor(model);
+
   const tools = [];
-  if (settings.webSearch !== false) tools.push({ type: "web_search_20260209", name: "web_search" });
-  if (settings.webFetch !== false) tools.push({ type: "web_fetch_20260209", name: "web_fetch" });
+  if (settings.webSearch !== false) tools.push({ type: web.search, name: "web_search" });
+  if (settings.webFetch !== false) tools.push({ type: web.fetch, name: "web_fetch" });
   // Every declared server must be referenced by exactly one toolset.
   for (const server of servers) tools.push({ type: "mcp_toolset", mcp_server_name: server.name });
   return tools;

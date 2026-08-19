@@ -18,7 +18,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { baseRequest } from "./providers/anthropic.js";
-import { MODELS, supportsEffort } from "./_pricing.js";
+import { MODELS, supportsDynamicFiltering, supportsEffort, webToolsFor } from "./_pricing.js";
+import { toTools } from "./prompt.js";
 
 const shapeFor = (depth, extra = {}) =>
   baseRequest({ model: MODELS[depth], system: "you are polstar", settings: { depth }, ...extra });
@@ -65,6 +66,79 @@ test("thinking is asked for as a summary, or the panel shows nothing", () => {
       shapeFor(depth).thinking.display,
       "summarized",
       `${depth}: without this the thinking panel is permanently blank`
+    );
+  }
+});
+
+/* ------------------------- the web tools, per model ----------------------- */
+
+// What went wrong on the live site: the Quick tier printed "Web tools aren't
+// available on this API key" on every reply and answered without searching,
+// while Balanced searched fine. The key was fine. `web_search_20260209` and
+// later run the search inside code execution — that's what dynamic filtering
+// is — and Anthropic documents that as Claude 4.6 and later. Haiku 4.5 predates
+// it, so the API rejected the tool and the fallback quietly answered without
+// one, which looked like ordinary operation.
+
+test("the model that can't do dynamic filtering gets the basic tool versions", () => {
+  const types = toTools({}, [], MODELS.quick).map((t) => t.type);
+  assert.deepEqual(types, ["web_search_20250305", "web_fetch_20250910"]);
+});
+
+test("the models that can do it keep the dated versions", () => {
+  for (const depth of ["balanced", "deep"]) {
+    const types = toTools({}, [], MODELS[depth]).map((t) => t.type);
+    assert.deepEqual(
+      types,
+      ["web_search_20260209", "web_fetch_20260209"],
+      `${depth} should keep dynamic filtering`
+    );
+  }
+});
+
+test("search and fetch are never a mismatched pair", () => {
+  // Mixing them is the confusing half of this bug: one of the two 400s and the
+  // other doesn't, so the symptom depends on which the model reached for first.
+  for (const model of Object.values(MODELS)) {
+    const { search, fetch } = webToolsFor(model);
+    const dated = (type) => /_20260\d{3}$/.test(type);
+    assert.equal(
+      dated(search),
+      dated(fetch),
+      `${model}: got ${search} with ${fetch} — both must be dated or both basic`
+    );
+  }
+});
+
+test("the tool shape follows the capability table rather than a guess", () => {
+  for (const model of Object.values(MODELS)) {
+    const usesDynamic = toTools({}, [], model).some((t) => /_20260209$/.test(t.type));
+    assert.equal(
+      usesDynamic,
+      supportsDynamicFiltering(model),
+      `${model}: tool version disagrees with supportsDynamicFiltering()`
+    );
+  }
+});
+
+test("no model can be sent a tool version it rejects", () => {
+  // The regression, stated as the thing that must never be true again: the
+  // Quick model paired with a dynamic-filtering tool.
+  const quick = toTools({ webSearch: true, webFetch: true }, [], MODELS.quick);
+  assert.ok(
+    quick.every((t) => !/_20260/.test(t.type)),
+    `Quick was handed ${quick.map((t) => t.type).join(", ")}`
+  );
+  assert.equal(quick.length, 2, "and it must still get both web tools, not none");
+});
+
+test("turning a tool off still turns it off, on every model", () => {
+  for (const model of Object.values(MODELS)) {
+    assert.deepEqual(toTools({ webSearch: false, webFetch: false }, [], model), []);
+    assert.deepEqual(
+      toTools({ webSearch: false }, [], model).map((t) => t.name),
+      ["web_fetch"],
+      `${model}: the wrong tool survived`
     );
   }
 });
