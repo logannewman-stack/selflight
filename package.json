@@ -21,7 +21,8 @@
     "verify:projects": "node verify/projects.mjs",
     "verify:routines": "node verify/routines.mjs",
     "verify:welcome": "node verify/welcome.mjs",
-    "verify:phone": "node verify/phone.mjs"
+    "verify:phone": "node verify/phone.mjs",
+    "verify:reset": "node verify/reset.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
