@@ -40,6 +40,12 @@ export function friendlyAuthError(error) {
   if (/email not confirmed/i.test(message)) return "Check your inbox and confirm your email first.";
   if (/user already registered/i.test(message)) return "There's already an account with that email. Sign in instead.";
   if (/password should be at least/i.test(message)) return "Use at least six characters for the password.";
+  // Reset links expire in an hour and are single-use, and corporate mail
+  // scanners routinely spend that use before the person ever clicks. Supabase
+  // words the result several ways depending on where it failed; what's needed
+  // on the other end is one sentence and the next step.
+  if (/link is invalid or has expired|otp_expired|auth session missing|session_not_found/i.test(message))
+    return "That link has expired or has already been used. Send yourself a new one.";
   if (/rate limit|too many/i.test(message)) return "Too many attempts. Give it a minute.";
   if (/redirect/i.test(message)) return "This site's URL isn't allowed in your Supabase auth settings yet.";
   return message || "Something went wrong signing in.";

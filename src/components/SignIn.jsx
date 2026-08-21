@@ -20,6 +20,11 @@ import { friendlyAuthError, supabase } from "../lib/supabase.js";
 // Password and magic link, both. A password gives an answer immediately, which
 // is what you want while testing; a link is what you want when you've forgotten
 // the password. Neither is more "real" than the other to Supabase.
+//
+// `reset` is the third: a link that lets somebody *change* the password rather
+// than get in around it. A magic link already gets a forgetful person into
+// their account, but it leaves the forgotten password in place, so they're
+// locked out again next time and the app looks broken.
 const MODES = {
   in: {
     title: "Welcome back",
@@ -41,18 +46,46 @@ const MODES = {
     action: "Email me a link",
     swap: "Use a password instead",
     next: "in"
+  },
+  reset: {
+    title: "Reset your password",
+    blurb: "Tell us the address on the account and we'll email a link to set a new password.",
+    action: "Email me a reset link",
+    swap: "Back to sign in",
+    next: "in"
+  },
+  // Reached from the emailed link rather than from a button, which is why it
+  // has no `swap`: there is nowhere else to go until the password is set.
+  recover: {
+    title: "Set a new password",
+    blurb: "Choose something you'll remember. You're already signed in — this replaces the old one.",
+    action: "Save new password",
+    swap: null,
+    next: "in"
   }
 };
 
-export default function SignIn({ onBack }) {
-  const [mode, setMode] = useState("in");
+export default function SignIn({ onBack, recovery = false, notice = null, onRecovered }) {
+  // `recovery` is not a mode somebody can navigate to — it's where the emailed
+  // link lands, and the only way out is setting a password.
+  //
+  // `notice` is the other half of that arrival: the link was a reset link and
+  // it didn't work, usually because it had expired or had already been used.
+  // Opening on `reset` with the reason on screen means the next thing they see
+  // is the button that sends a fresh one — rather than a sign-in form that
+  // gives no hint why the link they just clicked did nothing.
+  const [mode, setMode] = useState(recovery ? "recover" : notice ? "reset" : "in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  // Through the same translator as every other failure, so an expired link
+  // reads the same whether it was caught in the URL or thrown on submit.
+  const [error, setError] = useState(() => (notice ? friendlyAuthError({ message: notice }) : null));
   const [sent, setSent] = useState(null);
-  const emailRef = useRef(null);
+  // Whichever field comes first in this mode — the email box everywhere except
+  // recovery, where there isn't one.
+  const firstRef = useRef(null);
 
   const copy = MODES[mode];
 
@@ -60,7 +93,7 @@ export default function SignIn({ onBack }) {
   // throws the keyboard up over the page before anyone has read what they're
   // signing into.
   useEffect(() => {
-    if (window.matchMedia?.("(min-width: 640px)").matches) emailRef.current?.focus();
+    if (window.matchMedia?.("(min-width: 640px)").matches) firstRef.current?.focus();
   }, []);
 
   const submit = async (e) => {
@@ -71,7 +104,22 @@ export default function SignIn({ onBack }) {
     setError(null);
 
     try {
-      if (mode === "link") {
+      if (mode === "recover") {
+        if (password.length < 6) throw new Error("Password should be at least 6 characters.");
+        const { error: err } = await supabase.auth.updateUser({ password });
+        if (err) throw err;
+        // They're already signed in — the recovery link did that. All this
+        // needs to do is hand the app back.
+        onRecovered?.();
+      } else if (mode === "reset") {
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin
+        });
+        if (err) throw err;
+        // Said the same way whether or not the address has an account. Anything
+        // else turns this box into a way to find out who has one.
+        setSent("If that address has an account, a link to set a new password is on its way.");
+      } else if (mode === "link") {
         const { error: err } = await supabase.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: window.location.origin }
@@ -126,7 +174,15 @@ export default function SignIn({ onBack }) {
     );
   }
 
-  const ready = email.trim() && (mode === "link" || password);
+  // Per mode, because the two new ones don't want the same pair as the old
+  // ones. Recovery has no email box at all — the link that got them here has
+  // already signed them in — so a blanket `email.trim() &&` would leave its
+  // button disabled forever, on the one screen with no way back out.
+  const wantsEmail = mode !== "recover";
+  const wantsPassword = mode !== "link" && mode !== "reset";
+  const ready = (!wantsEmail || email.trim()) && (!wantsPassword || password);
+  // Both of these send an email and wait rather than answering now.
+  const posts = mode === "link" || mode === "reset";
 
   return (
     <Frame onBack={onBack}>
@@ -142,32 +198,38 @@ export default function SignIn({ onBack }) {
           the heading above stays where it was read. On a card there's no spare
           space to distribute, so it goes back to being a margin. */}
       <form onSubmit={submit} className="mt-auto space-y-3 pt-8 sm:mt-0 sm:pt-7">
-        <Field
-          ref={emailRef}
-          type="email"
-          value={email}
-          onChange={setEmail}
-          placeholder="you@example.com"
-          label="Email"
-          // The three that decide whether a phone keyboard is helpful or
-          // hostile: an @ key, no capital first letter, no autocorrect
-          // rewriting the address as it's typed.
-          inputMode="email"
-          autoComplete="email"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          enterKeyHint={mode === "link" ? "send" : "next"}
-        />
-
-        {mode !== "link" && (
+        {wantsEmail && (
           <Field
+            ref={firstRef}
+            type="email"
+            value={email}
+            onChange={setEmail}
+            placeholder="you@example.com"
+            label="Email"
+            // The three that decide whether a phone keyboard is helpful or
+            // hostile: an @ key, no capital first letter, no autocorrect
+            // rewriting the address as it's typed.
+            inputMode="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            enterKeyHint={posts ? "send" : "next"}
+          />
+        )}
+
+        {wantsPassword && (
+          <Field
+            ref={wantsEmail ? undefined : firstRef}
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={setPassword}
             placeholder="At least six characters"
-            label="Password"
-            autoComplete={mode === "up" ? "new-password" : "current-password"}
+            label={mode === "recover" ? "New password" : "Password"}
+            // A password manager offers to *save* on `new-password` and to fill
+            // on `current-password`. Getting this wrong on the recovery screen
+            // means the manager keeps the password that just stopped working.
+            autoComplete={mode === "up" || mode === "recover" ? "new-password" : "current-password"}
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
@@ -207,7 +269,7 @@ export default function SignIn({ onBack }) {
           ) : (
             <>
               {copy.action}
-              {mode === "link" ? (
+              {posts ? (
                 <Mail className="h-4 w-4" strokeWidth={2.2} />
               ) : (
                 <ArrowRight className="h-4 w-4" strokeWidth={2.4} />
@@ -217,22 +279,42 @@ export default function SignIn({ onBack }) {
         </button>
       </form>
 
-      <div className="mt-6 flex flex-col gap-1 border-t border-line pt-4 text-base">
-        <button
-          onClick={() => go(copy.next)}
-          className="flex min-h-[44px] items-center font-medium text-muted transition-colors hover:text-ink"
-        >
-          {copy.swap}
-        </button>
-        {mode !== "link" && (
-          <button
-            onClick={() => go("link")}
-            className="flex min-h-[44px] items-center text-muted transition-colors hover:text-ink"
-          >
-            Email me a sign-in link instead
-          </button>
-        )}
-      </div>
+      {/* The other ways in, in one place rather than scattered around the form.
+          Forgetting a password is the first thing that goes wrong here, so it
+          leads — it sits directly under the button that just refused, which is
+          where somebody is already looking.
+
+          Hidden entirely during recovery: every route here leaves without
+          setting the password they came to set, and they'd be locked out again
+          the next time with the app looking like it had worked. */}
+      {mode !== "recover" && (
+        <div className="mt-6 flex flex-col gap-1 border-t border-line pt-4 text-base">
+          {mode === "in" && (
+            <button
+              onClick={() => go("reset")}
+              className="flex min-h-[44px] items-center font-medium text-muted transition-colors hover:text-ink"
+            >
+              Forgot your password?
+            </button>
+          )}
+          {copy.swap && (
+            <button
+              onClick={() => go(copy.next)}
+              className="flex min-h-[44px] items-center font-medium text-muted transition-colors hover:text-ink"
+            >
+              {copy.swap}
+            </button>
+          )}
+          {mode !== "link" && (
+            <button
+              onClick={() => go("link")}
+              className="flex min-h-[44px] items-center text-muted transition-colors hover:text-ink"
+            >
+              Email me a sign-in link instead
+            </button>
+          )}
+        </div>
+      )}
     </Frame>
   );
 }

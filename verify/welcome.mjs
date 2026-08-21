@@ -46,7 +46,10 @@ const browser = await chromium.launch({
 
 const errors = [];
 
-async function open({ viewport, touch = false, theme = null }) {
+// `at` is a fragment or query to land on rather than the bare site — how every
+// auth email arrives, and the only way to reach the screens behind one without
+// a mailbox.
+async function open({ viewport, touch = false, theme = null, at = "" }) {
   const context = await browser.newContext({
     viewport,
     hasTouch: touch,
@@ -80,7 +83,7 @@ async function open({ viewport, touch = false, theme = null }) {
     );
   }
 
-  await page.goto(SITE, { waitUntil: "domcontentloaded" });
+  await page.goto(SITE + at, { waitUntil: "domcontentloaded" });
   return { context, page };
 }
 
@@ -546,6 +549,117 @@ for (const theme of ["paper", "focus", "slate", "midnight"]) {
     .then(() => true)
     .catch(() => false);
   ok("Back returns to the landing page", returned);
+
+  await context.close();
+}
+
+/* ------------------------ forgetting the password ------------------------- */
+
+// The route whose absence is a support email. Three things have to hold, and
+// the third is the one that isn't obvious from the outside:
+//
+//   1. There's a way to ask for a reset from the sign-in screen at all.
+//   2. Asking needs an email and nothing else. The screen has no password box,
+//      so a submit button that waits for a password can never be pressed —
+//      which is exactly what the shared `ready` check used to do.
+//   3. The link Supabase sends *signs you in*. So the app has to recognise the
+//      landing and show a set-a-password screen. Left alone it does the obvious
+//      thing — sees a session, opens the chat — and the password they came to
+//      change is still the one they've forgotten. Nothing errors, nothing logs,
+//      and they find out the next time they're signed out.
+
+{
+  const { context, page } = await open({ viewport: LAPTOP });
+  await landingUp(page).waitFor();
+  await page.click("body", { position: { x: 650, y: 450 } });
+  await signInUp(page).waitFor();
+  await page.waitForTimeout(250);
+
+  const forgot = page.locator("button", { hasText: "Forgot your password?" });
+  ok("sign in offers a way out of a forgotten password", (await forgot.count()) === 1);
+
+  await forgot.click();
+  const title = await page.locator("h1").innerText();
+  ok("it opens the reset screen", title === "Reset your password", title);
+
+  const passwords = await page.locator("input[type='password']").count();
+  ok("the reset screen drops the password box", passwords === 0, `${passwords} password fields`);
+
+  const submit = page.locator("button[type='submit']");
+  ok("its button starts disabled", await submit.isDisabled());
+  await page.fill("input[type='email']", "someone@example.com");
+  ok("and an email alone is enough to enable it", await submit.isEnabled());
+
+  await page.click("text=Back to sign in");
+  const back = await page.locator("h1").innerText();
+  ok("and there's a way back to signing in", back === "Welcome back", back);
+
+  await context.close();
+}
+
+/* ------------------------- landing on a reset link ------------------------ */
+
+{
+  // What the emailed link leaves in the address bar. No access token, because
+  // there's no real project behind this — enough to prove the app recognises
+  // the arrival, which is the part that has to be written rather than inherited.
+  const { context, page } = await open({ viewport: LAPTOP, at: "#type=recovery" });
+
+  const arrived = await page
+    .locator("h1", { hasText: "Set a new password" })
+    .waitFor({ timeout: 6000 })
+    .then(() => true)
+    .catch(() => false);
+  ok("a reset link opens the set-a-password screen", arrived);
+
+  if (arrived) {
+    // Ahead of the pitch, too. This browser has never seen the landing page,
+    // and someone arriving from their inbox is not there to read it.
+    ok("it skips the pitch on the way", (await landingUp(page).count()) === 0);
+
+    const emails = await page.locator("input[type='email']").count();
+    ok("it doesn't ask for an email it already knows", emails === 0, `${emails} email fields`);
+
+    // The failure the shared `ready` check produced here: no email box, so
+    // `email.trim() && …` was false forever and the only button on the only
+    // screen with no way out could never be pressed.
+    const submit = page.locator("button[type='submit']");
+    ok("its button starts disabled", await submit.isDisabled());
+    await page.fill("input[type='password']", "a-longer-one");
+    ok("and a password alone is enough to enable it", await submit.isEnabled());
+
+    // Every other route off this screen leaves the old password in place.
+    const escapes = await page
+      .locator("button", { hasText: /sign-in link|Create an account|Back/ })
+      .count();
+    ok("nothing offers a way out that changes nothing", escapes === 0, `${escapes} found`);
+  }
+
+  await context.close();
+}
+
+/* ------------------------- landing on a stale one ------------------------- */
+
+{
+  // Reset links last an hour and are single-use, and corporate mail scanners
+  // routinely spend that use before anybody clicks. This lands with no session
+  // and fires no auth event at all, so without reading the URL the app shows an
+  // ordinary sign-in form and never says why the link did nothing.
+  const { context, page } = await open({
+    viewport: LAPTOP,
+    at: "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired"
+  });
+
+  await page.locator("h1").waitFor({ timeout: 6000 }).catch(() => {});
+  const title = await page.locator("h1").innerText().catch(() => "");
+  ok("a stale link lands where a fresh one is sent from", title === "Reset your password", title);
+
+  const said = await page.locator("[role='alert']").first().innerText().catch(() => "");
+  ok(
+    "and says what went wrong rather than nothing",
+    /expired|already been used/i.test(said),
+    said || "nothing on screen"
+  );
 
   await context.close();
 }

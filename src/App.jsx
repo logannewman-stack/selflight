@@ -21,6 +21,7 @@ import { withAttachments } from "./lib/attach.js";
 import { fallbackTitle, lastChat, loadSettings, rememberChat } from "./lib/storage.js";
 import { onStoreError, storeFor } from "./lib/store.js";
 import { hasSupabase, supabase } from "./lib/supabase.js";
+import { readAuthRedirect } from "./lib/recovery.js";
 
 const SUGGESTIONS = [
   "Explain something I'm stuck on",
@@ -116,6 +117,11 @@ export default function App() {
       return false;
     }
   });
+  // Read on the first render because the Supabase client clears the address bar
+  // as soon as it has parsed it — a moment later there's nothing left to read.
+  // The PASSWORD_RECOVERY event below is the primary signal; this catches the
+  // expired link, which fires no event at all because no session is created.
+  const [authLink, setAuthLink] = useState(() => readAuthRedirect(window.location.href));
   const [prefersDark, setPrefersDark] = useState(
     () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false
   );
@@ -205,7 +211,11 @@ export default function App() {
     });
 
     // Fires on sign-in, sign-out, token refresh, and on the magic-link return.
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      // A reset link signs them in before they've set anything. Without this
+      // the next two lines hand them the chat and the forgotten password stays
+      // exactly where it was — which looks like success and isn't.
+      if (event === "PASSWORD_RECOVERY") setAuthLink({ recovery: true, error: null });
       setUser(session?.user ?? null);
       setAuthReady(true);
     });
@@ -918,6 +928,20 @@ export default function App() {
   // The theme is already applied to <html>, so an empty page here is a themed
   // one rather than a white flash.
   if (!authReady) return <div className="h-full bg-page" />;
+
+  // Somebody who followed a password-reset link, ahead of everything else. It
+  // outranks the setup screen deliberately: whether this deployment has a model
+  // key has nothing to do with whether they can get back into their account,
+  // and a reset link that lands on "add an API key" is a dead end.
+  if (hasSupabase && (authLink.recovery || authLink.error)) {
+    return (
+      <SignIn
+        recovery={authLink.recovery}
+        notice={authLink.error}
+        onRecovered={() => setAuthLink({ recovery: false, error: null })}
+      />
+    );
+  }
 
   // Nothing can work without a model key, and "type a message, get an error"
   // is a poor way to learn that. Say what's missing and how to fix it instead.
