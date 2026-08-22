@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ArrowUpRight, Check, Loader2, Zap } from "lucide-react";
+import { ArrowUpRight, Check, Loader2 } from "lucide-react";
 import { billing as fetchBilling, startCheckout } from "../../lib/api.js";
 
 // The plan, what's left of the month, and what else is for sale.
@@ -60,7 +60,7 @@ export default function Billing() {
     );
   }
 
-  const { plan, plans = [], payments, depths = [] } = data;
+  const { plan, plans = [], payments } = data;
 
   return (
     <div className="thin-scrollbar h-full overflow-y-auto px-4 py-4">
@@ -87,8 +87,7 @@ export default function Billing() {
               {plan?.subscribed ? "Other plans" : "Plans"}
             </h2>
             <p className="mb-3 text-base leading-relaxed text-muted">
-              A message means one on Balanced. Quick costs less and Deep costs more — the table at
-              the bottom says exactly how much.
+              A message means one on the Balanced setting.
             </p>
 
             <div className="grid gap-2.5 sm:grid-cols-2">
@@ -106,7 +105,6 @@ export default function Billing() {
           </>
         )}
 
-        {depths.length > 0 && <Costs depths={depths} />}
       </div>
     </div>
   );
@@ -239,42 +237,3 @@ function Feature({ children }) {
   );
 }
 
-/* --------------------------- what a message costs ------------------------- */
-
-// Published rather than buried, because an allowance people can't predict is an
-// allowance they assume is being spent unfairly.
-function Costs({ depths }) {
-  const NAMES = { quick: "Quick", balanced: "Balanced", deep: "Deep" };
-
-  // A Balanced message is the unit, so Quick is half of one and Deep is one and
-  // a half. Written out rather than shown as "0.5 messages", which reads like a
-  // rounding error rather than a price.
-  const share = (credits) => {
-    const messages = credits / 2;
-    if (messages === 0.5) return "half a message";
-    if (messages === 1) return "1 message";
-    if (messages === 1.5) return "1½ messages";
-    return `${messages} messages`;
-  };
-
-  return (
-    <div className="mt-6 rounded-2xl border border-line bg-panel p-4">
-      <h3 className="flex items-center gap-1.5 font-medium">
-        <Zap className="h-3.5 w-3.5 text-accent" strokeWidth={2.2} />
-        What a message costs
-      </h3>
-      <p className="mt-1.5 text-base leading-relaxed text-muted">
-        Every plan's allowance is quoted in Balanced messages. Switch the dial above the composer
-        and the same allowance goes further, or less far.
-      </p>
-      <ul className="mt-2.5 space-y-1 text-base">
-        {depths.map(({ depth, credits }) => (
-          <li key={depth} className="flex items-baseline justify-between gap-3">
-            <span>{NAMES[depth] || depth}</span>
-            <span className="text-muted">counts as {share(credits)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}

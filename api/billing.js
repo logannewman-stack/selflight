@@ -6,7 +6,7 @@
 // figure it shows is the same figure the chat route enforces against.
 
 import { billingFor, hasSupabase, usageThisMonth, userFromRequest } from "./_supabase.js";
-import { CREDITS, CREDITS_PER_MESSAGE, MODELS, messagesIn, money } from "./_pricing.js";
+import { CREDITS_PER_MESSAGE, messagesIn, money } from "./_pricing.js";
 import { configured, priceFor, sellable } from "./_stripe.js";
 
 export default async function handler(req, res) {
@@ -18,9 +18,12 @@ export default async function handler(req, res) {
   const catalogue = {
     payments: configured(),
     creditsPerMessage: CREDITS_PER_MESSAGE,
-    // What a message costs at each depth, so the interface can explain the
-    // allowance rather than just count down from it.
-    depths: Object.keys(MODELS).map((depth) => ({ depth, credits: CREDITS[depth] })),
+    // What a message costs at each depth is deliberately absent. It used to be
+    // here, and the billing screen published a table of it. The per-depth
+    // weighting is a pricing decision, and sending it to the browser puts it in
+    // front of anyone who opens the network tab whether or not the screen draws
+    // it — so taking the table out without taking this out would have hidden it
+    // rather than withheld it.
     plans: sellable().map(describe)
   };
 
